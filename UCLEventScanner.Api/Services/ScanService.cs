@@ -10,9 +10,6 @@ using UCLEventScanner.Shared.Messages;
 
 namespace UCLEventScanner.Api.Services;
 
-/// <summary>
-/// Service for handling scan requests using EIP Request-Reply pattern
-/// </summary>
 public interface IScanService
 {
     Task<ScanResponseDto> ProcessScanAsync(ScanRequestDto scanRequest);
@@ -27,7 +24,6 @@ public class ScanService : IScanService
     private readonly ILogger<ScanService> _logger;
     private readonly IResultBroadcaster _resultBroadcaster;
     
-    // EIP: Correlation tracking for Request-Reply pattern
     private readonly ConcurrentDictionary<string, TaskCompletionSource<ValidationReplyMessage>> _pendingRequests;
     private readonly Timer _timeoutTimer;
     private const int TIMEOUT_SECONDS = 30;
@@ -46,16 +42,11 @@ public class ScanService : IScanService
         _resultBroadcaster = resultBroadcaster;
         _pendingRequests = new ConcurrentDictionary<string, TaskCompletionSource<ValidationReplyMessage>>();
         
-        // Setup timer to clean up timed out requests
         _timeoutTimer = new Timer(CleanupTimedOutRequests, null, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
     }
 
-    /// <summary>
-    /// EIP Request-Reply Pattern: Send scan request and await response
-    /// </summary>
     public async Task<ScanResponseDto> ProcessScanAsync(ScanRequestDto scanRequest)
     {
-        // Validate scanner is active
         using var scope = _scopeFactory.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         
@@ -65,11 +56,9 @@ public class ScanService : IScanService
             throw new InvalidOperationException($"Scanner {scanRequest.ScannerId} is not active");
         }
 
-        // Generate correlation ID for Request-Reply pattern
         var correlationId = Guid.NewGuid().ToString();
         var routingKey = $"scanner.{scanRequest.ScannerId}";
         
-        // Create request message
         var requestMessage = new ValidationRequestMessage
         {
             CorrelationId = correlationId,
@@ -78,7 +67,6 @@ public class ScanService : IScanService
             ScannerId = scanRequest.ScannerId
         };
 
-        // Setup reply handling
         var tcs = new TaskCompletionSource<ValidationReplyMessage>();
         _pendingRequests[correlationId] = tcs;
 
@@ -86,14 +74,12 @@ public class ScanService : IScanService
         {
             using var channel = await _connectionService.CreateChannelAsync();
             
-            // EIP: DirectReplyTo for efficient replies - simplified implementation
             var replyQueueName = "amq.rabbitmq.reply-to";
             
-            // Publish request message
             var properties = channel.CreateBasicProperties();
             properties.CorrelationId = correlationId;
             properties.ReplyTo = replyQueueName;
-            properties.Expiration = (TIMEOUT_SECONDS * 1000).ToString(); // TTL in milliseconds
+            properties.Expiration = (TIMEOUT_SECONDS * 1000).ToString();
 
             var messageBody = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(requestMessage));
             
@@ -105,16 +91,13 @@ public class ScanService : IScanService
             _logger.LogInformation("Sent scan request - CorrelationId: {CorrelationId}, Scanner: {ScannerId}", 
                 correlationId, scanRequest.ScannerId);
 
-            // For this simplified demo, we'll simulate the response after a short delay
-            await Task.Delay(500); // Simulate processing time
+            await Task.Delay(500);
 
-            // Simulate validation response (in real implementation, this would come from the consumer)
             var simulatedReply = await SimulateValidationAsync(requestMessage);
 
             _logger.LogInformation("Received scan reply - CorrelationId: {CorrelationId}, Valid: {IsValid}", 
                 correlationId, simulatedReply.IsValid);
 
-            // EIP: Publish result to topic exchange for displays  
             await _resultBroadcaster.PublishValidationResultAsync(
                 scanRequest.ScannerId, 
                 simulatedReply.IsValid, 
@@ -138,14 +121,10 @@ public class ScanService : IScanService
         }
         finally
         {
-            // Cleanup
             _pendingRequests.TryRemove(correlationId, out _);
         }
     }
 
-    /// <summary>
-    /// Check if scanner is healthy (queue exists and is accessible)
-    /// </summary>
     public async Task<bool> CheckScannerHealthAsync(int scannerId)
     {
         try
@@ -159,11 +138,9 @@ public class ScanService : IScanService
                 return false;
             }
 
-            // Try to access the scanner's queue
             using var channel = await _connectionService.CreateChannelAsync();
             var queueName = await _queueManager.GetScanRequestQueueName(scannerId);
             
-            // This will throw if queue doesn't exist
             var queueInfo = channel.QueueDeclarePassive(queueName);
             return queueInfo != null;
         }
@@ -174,9 +151,6 @@ public class ScanService : IScanService
         }
     }
 
-    /// <summary>
-    /// Simulate validation (in a real implementation, this would be handled by ValidationConsumer)
-    /// </summary>
     private async Task<ValidationReplyMessage> SimulateValidationAsync(ValidationRequestMessage request)
     {
         try
@@ -184,7 +158,6 @@ public class ScanService : IScanService
             using var scope = _scopeFactory.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-            // Check if student is registered for the event
             var isRegistered = await context.Registrations
                 .AnyAsync(r => r.StudentId == request.StudentId && r.EventId == request.EventId);
 
@@ -199,7 +172,6 @@ public class ScanService : IScanService
             }
             else
             {
-                // Check if student exists
                 var studentExists = await context.Students
                     .AnyAsync(s => s.Id == request.StudentId);
 
@@ -232,7 +204,7 @@ public class ScanService : IScanService
     private void CleanupTimedOutRequests(object? state)
     {
         var expiredKeys = new List<string>();
-        var cutoff = DateTime.UtcNow.AddMinutes(-2); // Clean up requests older than 2 minutes
+        var cutoff = DateTime.UtcNow.AddMinutes(-2);
 
         foreach (var kvp in _pendingRequests)
         {

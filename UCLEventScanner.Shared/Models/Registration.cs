@@ -3,9 +3,6 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace UCLEventScanner.Shared.Models;
 
-/// <summary>
-/// Entity representing a student registration for an event
-/// </summary>
 public class Registration
 {
     public int Id { get; set; }
@@ -18,7 +15,6 @@ public class Registration
     
     public DateTime RegisteredAt { get; set; }
     
-    // Navigation properties
     [ForeignKey(nameof(EventId))]
     public Event Event { get; set; } = null!;
     

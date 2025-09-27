@@ -3,9 +3,6 @@ using UCLEventScanner.Shared.DTOs;
 
 namespace UCLEventScanner.Client.Services;
 
-/// <summary>
-/// Service for managing SignalR connections and real-time communication
-/// </summary>
 public interface ISignalRService : IAsyncDisposable
 {
     HubConnection? Connection { get; }

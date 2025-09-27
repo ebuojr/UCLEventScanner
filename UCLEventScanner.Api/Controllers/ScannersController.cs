@@ -7,9 +7,6 @@ using UCLEventScanner.Shared.Models;
 
 namespace UCLEventScanner.Api.Controllers;
 
-/// <summary>
-/// Controller for managing scanners (CRUD for dynamic scanner lines)
-/// </summary>
 [ApiController]
 [Route("api/[controller]")]
 public class ScannersController : ControllerBase
@@ -25,9 +22,6 @@ public class ScannersController : ControllerBase
         _queueManager = queueManager;
     }
 
-    /// <summary>
-    /// Get all scanners
-    /// </summary>
     [HttpGet]
     public async Task<ActionResult<IEnumerable<ScannerDto>>> GetScanners()
     {
@@ -51,9 +45,6 @@ public class ScannersController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Get active scanners only
-    /// </summary>
     [HttpGet("active")]
     public async Task<ActionResult<IEnumerable<ScannerDto>>> GetActiveScanners()
     {
@@ -78,9 +69,6 @@ public class ScannersController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Get a specific scanner by ID
-    /// </summary>
     [HttpGet("{id}")]
     public async Task<ActionResult<ScannerDto>> GetScanner(int id)
     {
@@ -108,16 +96,11 @@ public class ScannersController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Create a new scanner (e.g., "Open Line 4")
-    /// EIP: Dynamically creates new queues for scalability
-    /// </summary>
     [HttpPost]
     public async Task<ActionResult<ScannerDto>> CreateScanner(CreateScannerDto createScannerDto)
     {
         try
         {
-            // Check if scanner with same name already exists
             var existingScanner = await _context.Scanners
                 .FirstOrDefaultAsync(s => s.Name == createScannerDto.Name);
 
@@ -135,7 +118,6 @@ public class ScannersController : ControllerBase
             _context.Scanners.Add(scanner);
             await _context.SaveChangesAsync();
 
-            // EIP: Dynamic Queue Management - Setup queues for new scanner if active
             if (scanner.IsActive)
             {
                 await _queueManager.SetupQueuesForScanner(scanner.Id);
@@ -159,10 +141,6 @@ public class ScannersController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Update a scanner (e.g., toggle active status)
-    /// EIP: Dynamic queue management based on scanner status
-    /// </summary>
     [HttpPut("{id}")]
     public async Task<IActionResult> UpdateScanner(int id, UpdateScannerDto updateScannerDto)
     {
@@ -176,7 +154,6 @@ public class ScannersController : ControllerBase
 
             var wasActive = scanner.IsActive;
 
-            // Update scanner properties
             if (!string.IsNullOrEmpty(updateScannerDto.Name))
             {
                 scanner.Name = updateScannerDto.Name;
@@ -189,17 +166,22 @@ public class ScannersController : ControllerBase
 
             await _context.SaveChangesAsync();
 
-            // EIP: Dynamic Queue Management - Handle queue setup/cleanup based on status change
             if (!wasActive && scanner.IsActive)
             {
-                // Scanner became active - setup queues
                 await _queueManager.SetupQueuesForScanner(scanner.Id);
                 _logger.LogInformation("Scanner {ScannerId} activated - queues created", scanner.Id);
             }
             else if (wasActive && !scanner.IsActive)
             {
-                // Scanner became inactive - cleanup can be handled by queue TTL
-                _logger.LogInformation("Scanner {ScannerId} deactivated - queues will expire", scanner.Id);
+                try
+                {
+                    await _queueManager.DeleteQueuesForScanner(scanner.Id);
+                    _logger.LogInformation("Scanner {ScannerId} deactivated - queues deleted", scanner.Id);
+                }
+                catch (Exception queueEx)
+                {
+                    _logger.LogWarning(queueEx, "Failed to delete queues for deactivated scanner {ScannerId}", scanner.Id);
+                }
             }
 
             _logger.LogInformation("Updated scanner {ScannerId}: {ScannerName}, Active: {IsActive}", 
@@ -214,9 +196,6 @@ public class ScannersController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Delete a scanner
-    /// </summary>
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteScanner(int id)
     {
@@ -228,10 +207,26 @@ public class ScannersController : ControllerBase
                 return NotFound();
             }
 
+            var scannerName = scanner.Name;
+            var wasActive = scanner.IsActive;
+
             _context.Scanners.Remove(scanner);
             await _context.SaveChangesAsync();
 
-            _logger.LogInformation("Deleted scanner {ScannerId}: {ScannerName}", id, scanner.Name);
+            if (wasActive)
+            {
+                try
+                {
+                    await _queueManager.DeleteQueuesForScanner(id);
+                    _logger.LogInformation("Deleted queues for scanner {ScannerId}: {ScannerName}", id, scannerName);
+                }
+                catch (Exception queueEx)
+                {
+                    _logger.LogWarning(queueEx, "Failed to delete queues for scanner {ScannerId}, but scanner was deleted from database", id);
+                }
+            }
+
+            _logger.LogInformation("Deleted scanner {ScannerId}: {ScannerName}", id, scannerName);
             return NoContent();
         }
         catch (Exception ex)

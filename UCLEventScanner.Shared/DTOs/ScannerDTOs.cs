@@ -2,9 +2,6 @@ using System.ComponentModel.DataAnnotations;
 
 namespace UCLEventScanner.Shared.DTOs;
 
-/// <summary>
-/// DTO for creating/updating a scanner
-/// </summary>
 public class CreateScannerDto
 {
     [Required]
@@ -14,9 +11,6 @@ public class CreateScannerDto
     public bool IsActive { get; set; } = true;
 }
 
-/// <summary>
-/// DTO for scanner responses
-/// </summary>
 public class ScannerDto
 {
     public int Id { get; set; }
@@ -24,9 +18,6 @@ public class ScannerDto
     public bool IsActive { get; set; }
 }
 
-/// <summary>
-/// DTO for updating scanner status
-/// </summary>
 public class UpdateScannerDto
 {
     [StringLength(100)]

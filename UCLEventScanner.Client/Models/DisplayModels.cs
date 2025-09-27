@@ -63,15 +63,8 @@ public static class DisplayConfig
         };
     }
     
-    public static string GetErrorIcon(string viewType)
-    {
-        return viewType.ToLower() switch
-        {
-            ControllerView => "✗",
-            StudentView => "😔",
-            _ => "✗"
-        };
-    }
+    public static string GetErrorIcon()
+        => "✗";
     
     public static string GetWaitingIcon(string viewType)
     {

@@ -11,9 +11,10 @@ namespace UCLEventScanner.Api.Services;
 /// </summary>
 public interface IDynamicQueueManager
 {
-    Task InitializeQueuesAsync();
     Task SetupQueuesForScanner(int scannerId);
+    Task DeleteQueuesForScanner(int scannerId);
     Task<string> GetScanRequestQueueName(int scannerId);
+    Task InitializeExchanges();
 }
 
 public class DynamicQueueManager : IDynamicQueueManager
@@ -37,10 +38,9 @@ public class DynamicQueueManager : IDynamicQueueManager
     }
 
     /// <summary>
-    /// Initialize all exchanges and queues for active scanners on startup
-    /// EIP: Setup infrastructure based on current system state
+    /// Initialize exchanges only (called once on startup)
     /// </summary>
-    public async Task InitializeQueuesAsync()
+    public async Task InitializeExchanges()
     {
         try
         {
@@ -53,32 +53,16 @@ public class DynamicQueueManager : IDynamicQueueManager
             // EIP: Declare Topic Exchange for Publish-Subscribe pattern
             channel.ExchangeDeclare(exchange: TOPIC_EXCHANGE, type: ExchangeType.Topic, durable: true);
             _logger.LogInformation("Declared topic exchange: {Exchange}", TOPIC_EXCHANGE);
-
-            // Setup queues for all active scanners
-            using var scope = _scopeFactory.CreateScope();
-            var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            
-            var activeScanners = await context.Scanners
-                .Where(s => s.IsActive)
-                .Select(s => s.Id)
-                .ToListAsync();
-
-            foreach (var scannerId in activeScanners)
-            {
-                await SetupQueuesForScannerInternal(channel, scannerId);
-            }
-
-            _logger.LogInformation("Initialized queues for {ScannerCount} active scanners", activeScanners.Count);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to initialize RabbitMQ queues");
+            _logger.LogError(ex, "Failed to initialize RabbitMQ exchanges");
             throw;
         }
     }
 
     /// <summary>
-    /// Setup queues for a specific scanner (when new scanner is added or activated)
+    /// Setup queues for a specific scanner (when admin creates or activates a scanner)
     /// EIP: Dynamic infrastructure provisioning
     /// </summary>
     public async Task SetupQueuesForScanner(int scannerId)
@@ -86,12 +70,38 @@ public class DynamicQueueManager : IDynamicQueueManager
         try
         {
             using var channel = await _connectionService.CreateChannelAsync();
+            
+            // Ensure exchanges exist
+            channel.ExchangeDeclare(exchange: DIRECT_EXCHANGE, type: ExchangeType.Direct, durable: true);
+            channel.ExchangeDeclare(exchange: TOPIC_EXCHANGE, type: ExchangeType.Topic, durable: true);
+            
             await SetupQueuesForScannerInternal(channel, scannerId);
             _logger.LogInformation("Setup queues for scanner {ScannerId}", scannerId);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to setup queues for scanner {ScannerId}", scannerId);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Delete queues for a specific scanner (when admin deletes a scanner)
+    /// </summary>
+    public async Task DeleteQueuesForScanner(int scannerId)
+    {
+        try
+        {
+            using var channel = await _connectionService.CreateChannelAsync();
+            var queueName = await GetScanRequestQueueName(scannerId);
+
+            // Delete the queue
+            channel.QueueDelete(queue: queueName, ifUnused: false, ifEmpty: false);
+            _logger.LogInformation("Deleted queue {QueueName} for scanner {ScannerId}", queueName, scannerId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to delete queues for scanner {ScannerId}", scannerId);
             throw;
         }
     }

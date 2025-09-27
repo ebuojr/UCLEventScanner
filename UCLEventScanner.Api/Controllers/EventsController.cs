@@ -6,9 +6,6 @@ using UCLEventScanner.Shared.Models;
 
 namespace UCLEventScanner.Api.Controllers;
 
-/// <summary>
-/// Controller for managing events (CRUD operations)
-/// </summary>
 [ApiController]
 [Route("api/[controller]")]
 public class EventsController : ControllerBase
@@ -22,9 +19,6 @@ public class EventsController : ControllerBase
         _logger = logger;
     }
 
-    /// <summary>
-    /// Get all events with registration counts
-    /// </summary>
     [HttpGet]
     public async Task<ActionResult<IEnumerable<EventDto>>> GetEvents()
     {
@@ -50,9 +44,6 @@ public class EventsController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Get a specific event by ID
-    /// </summary>
     [HttpGet("{id}")]
     public async Task<ActionResult<EventDto>> GetEvent(int id)
     {
@@ -84,9 +75,6 @@ public class EventsController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Create a new event
-    /// </summary>
     [HttpPost]
     public async Task<ActionResult<EventDto>> CreateEvent(CreateEventDto createEventDto)
     {
@@ -119,9 +107,6 @@ public class EventsController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Update an existing event
-    /// </summary>
     [HttpPut("{id}")]
     public async Task<IActionResult> UpdateEvent(int id, CreateEventDto updateEventDto)
     {
@@ -148,9 +133,6 @@ public class EventsController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Delete an event
-    /// </summary>
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteEvent(int id)
     {

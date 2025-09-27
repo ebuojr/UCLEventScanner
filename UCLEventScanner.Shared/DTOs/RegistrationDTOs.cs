@@ -2,9 +2,6 @@ using System.ComponentModel.DataAnnotations;
 
 namespace UCLEventScanner.Shared.DTOs;
 
-/// <summary>
-/// DTO for creating a new registration
-/// </summary>
 public class CreateRegistrationDto
 {
     [Required]
@@ -24,9 +21,6 @@ public class CreateRegistrationDto
     public int EventId { get; set; }
 }
 
-/// <summary>
-/// DTO for registration responses
-/// </summary>
 public class RegistrationDto
 {
     public int Id { get; set; }

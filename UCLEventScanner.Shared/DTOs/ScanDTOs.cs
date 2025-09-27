@@ -2,9 +2,6 @@ using System.ComponentModel.DataAnnotations;
 
 namespace UCLEventScanner.Shared.DTOs;
 
-/// <summary>
-/// DTO for scan requests (EIP Request-Reply Pattern)
-/// </summary>
 public class ScanRequestDto
 {
     [Required]
@@ -18,9 +15,6 @@ public class ScanRequestDto
     public int ScannerId { get; set; }
 }
 
-/// <summary>
-/// DTO for scan responses
-/// </summary>
 public class ScanResponseDto
 {
     public bool IsValid { get; set; }

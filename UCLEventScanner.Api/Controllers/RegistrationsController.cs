@@ -6,9 +6,6 @@ using UCLEventScanner.Shared.Models;
 
 namespace UCLEventScanner.Api.Controllers;
 
-/// <summary>
-/// Controller for managing student registrations
-/// </summary>
 [ApiController]
 [Route("api/[controller]")]
 public class RegistrationsController : ControllerBase
@@ -22,9 +19,6 @@ public class RegistrationsController : ControllerBase
         _logger = logger;
     }
 
-    /// <summary>
-    /// Get all registrations
-    /// </summary>
     [HttpGet]
     public async Task<ActionResult<IEnumerable<RegistrationDto>>> GetRegistrations()
     {
@@ -53,9 +47,6 @@ public class RegistrationsController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Get registrations for a specific event
-    /// </summary>
     [HttpGet("event/{eventId}")]
     public async Task<ActionResult<IEnumerable<RegistrationDto>>> GetRegistrationsByEvent(int eventId)
     {
@@ -85,22 +76,17 @@ public class RegistrationsController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Create a new registration (creates student if not exists)
-    /// </summary>
     [HttpPost]
     public async Task<ActionResult<RegistrationDto>> CreateRegistration(CreateRegistrationDto createRegistrationDto)
     {
         try
         {
-            // Check if event exists
             var eventEntity = await _context.Events.FindAsync(createRegistrationDto.EventId);
             if (eventEntity == null)
             {
                 return BadRequest("Event not found");
             }
 
-            // Check if student already registered for this event
             var existingRegistration = await _context.Registrations
                 .FirstOrDefaultAsync(r => r.EventId == createRegistrationDto.EventId && 
                                          r.StudentId == createRegistrationDto.StudentId);
@@ -110,7 +96,6 @@ public class RegistrationsController : ControllerBase
                 return BadRequest("Student is already registered for this event");
             }
 
-            // Create or update student
             var student = await _context.Students.FindAsync(createRegistrationDto.StudentId);
             if (student == null)
             {
@@ -124,12 +109,10 @@ public class RegistrationsController : ControllerBase
             }
             else
             {
-                // Update student info if provided
                 student.Name = createRegistrationDto.Name;
                 student.Email = createRegistrationDto.Email;
             }
 
-            // Create registration
             var registration = new Registration
             {
                 EventId = createRegistrationDto.EventId,
@@ -162,9 +145,6 @@ public class RegistrationsController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Check if a student is registered for an event (used by validation service)
-    /// </summary>
     [HttpGet("validate")]
     public async Task<ActionResult<bool>> ValidateRegistration([FromQuery] string studentId, [FromQuery] int eventId)
     {

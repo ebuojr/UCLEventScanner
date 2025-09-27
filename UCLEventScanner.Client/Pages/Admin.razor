@@ -7,11 +7,10 @@
 
 <PageTitle>Admin Dashboard</PageTitle>
 
-<div class="min-h-screen bg-gray-100">
+<div>
     <div class="max-w-7xl mx-auto px-4 py-8">
         <div class="mb-8">
             <h1 class="text-3xl font-bold text-gray-900 mb-2">Admin Dashboard</h1>
-            <p class="text-gray-600">Manage events and scanner lines</p>
         </div>
 
         <!-- Events Management -->
@@ -161,7 +160,6 @@
         }
         catch (Exception ex)
         {
-            // Log error without JSRuntime to avoid prerendering issues
             Console.WriteLine($"Failed to load events: {ex.Message}");
         }
     }
@@ -174,7 +172,6 @@
         }
         catch (Exception ex)
         {
-            // Log error without JSRuntime to avoid prerendering issues
             Console.WriteLine($"Failed to load scanners: {ex.Message}");
         }
     }

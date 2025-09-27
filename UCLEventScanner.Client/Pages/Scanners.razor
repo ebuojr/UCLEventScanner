@@ -1,4 +1,4 @@
-﻿@page "/scanners"
+@page "/scanners"
 @using UCLEventScanner.Shared.DTOs
 @inject HttpClient Http
 @inject IConfiguration Configuration
@@ -6,11 +6,10 @@
 
 <PageTitle>Event Scanners</PageTitle>
 
-<div class="min-h-screen bg-gray-100">
+<div>
     <div class="max-w-7xl mx-auto px-4 py-8">
         <div class="mb-8">
             <h1 class="text-3xl font-bold text-gray-900 mb-2">Event Scanners</h1>
-            <p class="text-gray-600">Scan student IDs at event entry points</p>
         </div>
 
         @if (events == null || scanners == null)
@@ -23,7 +22,7 @@
         else if (activeScanners.Count == 0)
         {
             <div class="bg-white border border-gray-300 rounded-lg p-8 text-center">
-                <div class="text-4xl mb-4">🔍</div>
+                <div class="text-4xl mb-4">??</div>
                 <h2 class="text-xl font-semibold text-gray-900 mb-2">No Active Scanners</h2>
                 <p class="text-gray-600">Please contact the administrator to activate scanner lines.</p>
             </div>
@@ -80,7 +79,7 @@
                                 var result = lastScanResults[scanner.Id];
                                 <div class="@(result.IsValid ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200") border rounded-lg p-3">
                                     <div class="flex items-center gap-2 mb-2">
-                                        <span class="@(result.IsValid ? "text-green-600" : "text-red-600")">@(result.IsValid ? "✓" : "✗")</span>
+                                        <span class="@(result.IsValid ? "text-green-600" : "text-red-600")">@(result.IsValid ? "?" : "?")</span>
                                         <span class="@(result.IsValid ? "text-green-800" : "text-red-800") font-medium">@(result.IsValid ? "Valid" : "Invalid")</span>
                                     </div>
                                     <p class="@(result.IsValid ? "text-green-700" : "text-red-700") text-sm mb-1">@result.Message</p>
@@ -99,7 +98,7 @@
                                             <div class="@(scan.IsValid ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200") border rounded p-2">
                                                 <div class="flex justify-between items-center">
                                                     <div class="flex items-center gap-2">
-                                                        <span class="@(scan.IsValid ? "text-green-600" : "text-red-600")">@(scan.IsValid ? "✓" : "✗")</span>
+                                                        <span class="@(scan.IsValid ? "text-green-600" : "text-red-600")">@(scan.IsValid ? "?" : "?")</span>
                                                         <span class="text-sm font-medium">@scan.StudentId</span>
                                                     </div>
                                                     <span class="text-xs text-gray-600">@scan.Timestamp.ToString("HH:mm:ss")</span>
@@ -128,7 +127,7 @@
                                 <div class="@(scan.IsValid ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200") border rounded-lg p-3">
                                     <div class="flex items-center justify-between">
                                         <div class="flex items-center gap-3">
-                                            <span class="@(scan.IsValid ? "text-green-600" : "text-red-600")">@(scan.IsValid ? "✓" : "✗")</span>
+                                            <span class="@(scan.IsValid ? "text-green-600" : "text-red-600")">@(scan.IsValid ? "?" : "?")</span>
                                             <div>
                                                 <p class="font-medium">@scan.StudentId</p>
                                                 <p class="text-sm text-gray-600">@activeScanners.FirstOrDefault(s => s.Id == scan.ScannerId)?.Name</p>
@@ -181,13 +180,11 @@
             events = await eventsTask;
             scanners = await scannersTask;
 
-            // Auto-select first event if available
             if (events?.Count > 0)
             {
                 selectedEventId = events.First().Id;
             }
 
-            // Initialize dictionaries for active scanners
             foreach (var scanner in activeScanners)
             {
                 studentIds[scanner.Id] = "";
@@ -204,15 +201,12 @@
     {
         selectedEventId = eventId;
         
-        // Clear scan history when switching events
         recentScans.Clear();
         lastScanResults.Clear();
         
-        // Reset input fields
-        foreach (var scanner in activeScanners)
+        foreach (var kvp in studentIds.ToList())
         {
-            studentIds[scanner.Id] = "";
-            scanningStatus[scanner.Id] = false;
+            studentIds[kvp.Key] = "";
         }
         
         StateHasChanged();
@@ -230,7 +224,6 @@
     {
         var studentId = studentIds.GetValueOrDefault(scannerId, "").Trim();
         
-        // Input validation
         if (string.IsNullOrWhiteSpace(studentId))
         {
             await JSRuntime.InvokeVoidAsync("alert", "Please enter a Student ID");
@@ -268,7 +261,6 @@
             {
                 lastScanResults[scannerId] = result;
 
-                // Add to recent scans history
                 var displayResult = new ScanResultForDisplay
                 {
                     StudentId = result.StudentId,
@@ -280,18 +272,15 @@
 
                 recentScans.Insert(0, displayResult);
 
-                // Keep only last 50 scans
                 if (recentScans.Count > 50)
                 {
                     recentScans.RemoveAt(50);
                 }
 
-                // Clear input after successful scan attempt
                 studentIds[scannerId] = "";
             }
             else
             {
-                // Handle null response
                 var nullResult = new ScanResponseDto
                 {
                     StudentId = studentId,
@@ -302,7 +291,6 @@
                 };
                 lastScanResults[scannerId] = nullResult;
                 
-                // Add to recent scans even for errors
                 var displayResult = new ScanResultForDisplay
                 {
                     StudentId = studentId,
@@ -327,7 +315,6 @@
 
             lastScanResults[scannerId] = errorResult;
             
-            // Add error to recent scans
             var displayResult = new ScanResultForDisplay
             {
                 StudentId = studentId,

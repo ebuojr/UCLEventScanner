@@ -8,18 +8,11 @@ using UCLEventScanner.Shared.Messages;
 
 namespace UCLEventScanner.Api.Services;
 
-/// <summary>
-/// Interface for publishing validation results
-/// </summary>
 public interface IResultBroadcaster
 {
     Task PublishValidationResultAsync(int scannerId, bool isValid, string message, string studentId, int eventId);
 }
 
-/// <summary>
-/// EIP: ResultBroadcaster - After reply, publishes to Topic Exchange (validation-results) 
-/// with routing key scanner.{ScannerId}.result for Publish-Subscribe pattern
-/// </summary>
 public class ResultBroadcaster : BackgroundService, IResultBroadcaster
 {
     private readonly IRabbitMqConnectionService _connectionService;
@@ -44,16 +37,12 @@ public class ResultBroadcaster : BackgroundService, IResultBroadcaster
         {
             _channel = await _connectionService.CreateChannelAsync();
             
-            // EIP: Setup Topic Exchange for Publish-Subscribe pattern
             _channel.ExchangeDeclare(exchange: TOPIC_EXCHANGE, type: ExchangeType.Topic, durable: true);
 
-            // Create queue for result broadcasting
             _channel.QueueDeclare(queue: RESULT_QUEUE, durable: true, exclusive: false, autoDelete: false);
             
-            // EIP: Bind with wildcard pattern to catch all scanner results
             _channel.QueueBind(queue: RESULT_QUEUE, exchange: TOPIC_EXCHANGE, routingKey: "scanner.*.result");
 
-            // Setup consumer for result messages
             var consumer = new EventingBasicConsumer(_channel);
             consumer.Received += async (model, ea) =>
             {
@@ -64,7 +53,6 @@ public class ResultBroadcaster : BackgroundService, IResultBroadcaster
 
             _logger.LogInformation("ResultBroadcaster started - listening for validation results");
 
-            // Keep the service running
             while (!stoppingToken.IsCancellationRequested)
             {
                 await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
@@ -93,7 +81,6 @@ public class ResultBroadcaster : BackgroundService, IResultBroadcaster
             _logger.LogInformation("Broadcasting result - Scanner: {ScannerId}, Valid: {IsValid}", 
                 result.ScannerId, result.IsValid);
 
-            // EIP: Publish-Subscribe - Broadcast to SignalR groups
             await BroadcastToDisplays(result);
         }
         catch (Exception ex)
@@ -106,12 +93,10 @@ public class ResultBroadcaster : BackgroundService, IResultBroadcaster
     {
         try
         {
-            // EIP: Send to controller displays (big icons)
             var controllerGroup = $"scanner-{result.ScannerId}-controller";
             await _hubContext.Clients.Group(controllerGroup).SendAsync("ReceiveResult", 
                 result.ScannerId, result.IsValid, result.Message);
 
-            // EIP: Send to student displays (friendly messages)
             var studentGroup = $"scanner-{result.ScannerId}-student";
             await _hubContext.Clients.Group(studentGroup).SendAsync("ReceiveResult", 
                 result.ScannerId, result.IsValid, result.Message);
@@ -124,10 +109,6 @@ public class ResultBroadcaster : BackgroundService, IResultBroadcaster
         }
     }
 
-    /// <summary>
-    /// Publish validation result to topic exchange
-    /// Called after validation reply is sent
-    /// </summary>
     public async Task PublishValidationResultAsync(int scannerId, bool isValid, string message, 
         string studentId, int eventId)
     {

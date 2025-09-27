@@ -2,9 +2,6 @@ using System.ComponentModel.DataAnnotations;
 
 namespace UCLEventScanner.Shared.Models;
 
-/// <summary>
-/// Entity representing a scanner (scanning line) in the system
-/// </summary>
 public class Scanner
 {
     public int Id { get; set; }

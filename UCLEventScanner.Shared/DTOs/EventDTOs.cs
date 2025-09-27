@@ -2,9 +2,6 @@ using System.ComponentModel.DataAnnotations;
 
 namespace UCLEventScanner.Shared.DTOs;
 
-/// <summary>
-/// DTO for creating a new event
-/// </summary>
 public class CreateEventDto
 {
     [Required]
@@ -15,9 +12,6 @@ public class CreateEventDto
     public DateTime Date { get; set; }
 }
 
-/// <summary>
-/// DTO for event responses
-/// </summary>
 public class EventDto
 {
     public int Id { get; set; }

@@ -2,10 +2,6 @@ using RabbitMQ.Client;
 
 namespace UCLEventScanner.Api.Services;
 
-/// <summary>
-/// Service for managing RabbitMQ connections
-/// EIP: Singleton connection factory pattern
-/// </summary>
 public interface IRabbitMqConnectionService
 {
     IConnection GetConnection();
@@ -24,7 +20,7 @@ public class RabbitMqConnectionService : IRabbitMqConnectionService, IDisposable
         
         var factory = new ConnectionFactory()
         {
-            HostName = "localhost", // For Docker: "rabbitmq" or specific hostname
+            HostName = "localhost",
             Port = 5672,
             UserName = "guest",
             Password = "guest",

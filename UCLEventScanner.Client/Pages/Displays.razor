@@ -16,7 +16,7 @@
 @if (ScannerId > 0 && !string.IsNullOrEmpty(ViewType))
 {
     <!-- Individual Display View -->
-    <div class="min-h-screen bg-gray-100 flex items-center justify-center">
+    <div class="flex items-center justify-center">
         <div class="max-w-2xl mx-auto px-4">
             <div class="bg-white border border-gray-300 rounded-lg p-8 text-center">
                 <div class="mb-6">
@@ -28,7 +28,7 @@
                     @if (lastResult != null)
                     {
                         <div class="text-6xl mb-4 @(lastResult.IsValid ? "text-green-600" : "text-red-600")">
-                            @(lastResult.IsValid? DisplayConfig.GetSuccessIcon(ViewType) : DisplayConfig.GetErrorIcon(ViewType))
+                            @(lastResult.IsValid? DisplayConfig.GetSuccessIcon(ViewType) : DisplayConfig.GetErrorIcon())
                         </div>
 
                         @if (ViewType.ToLower() == DisplayConfig.ControllerView)
@@ -72,11 +72,10 @@
 else
 {
     <!-- Display Selection Page -->
-    <div class="min-h-screen bg-gray-100">
+    <div>
         <div class="max-w-6xl mx-auto px-4 py-8">
             <div class="text-center mb-8">
                 <h1 class="text-3xl font-bold text-gray-900 mb-2">Scanner Displays</h1>
-                <p class="text-gray-600">Choose a display view for real-time scanner results</p>
             </div>
 
             @if (isLoading)
@@ -109,14 +108,12 @@ else
                                 <a href="/displays/@scanner.Id/controller" class="block w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-lg text-center transition-colors">
                                     <span class="text-2xl block mb-1">🖥️</span>
                                     <div class="font-semibold">Controller View</div>
-                                    <div class="text-sm opacity-90">Large icons for staff monitoring</div>
                                 </a>
 
                                 <!-- Student Display -->
                                 <a href="/displays/@scanner.Id/student" class="block w-full bg-green-600 hover:bg-green-700 text-white px-4 py-3 rounded-lg text-center transition-colors">
                                     <span class="text-2xl block mb-1">👥</span>
                                     <div class="font-semibold">Student View</div>
-                                    <div class="text-sm opacity-90">Friendly messages for attendees</div>
                                 </a>
                             </div>
                         </div>
@@ -171,7 +168,6 @@ else
         }
         catch (Exception)
         {
-            // Handle error silently - UI will show appropriate state
         }
         finally
         {
@@ -184,20 +180,16 @@ else
     {
         try
         {
-            // Get API base URL and construct SignalR hub URL
             var apiBaseUrl = Configuration["ApiBaseUrl"];
             var hubUrl = $"{apiBaseUrl.TrimEnd('/')}/validationHub";
 
-            // Connect to SignalR
             var connected = await SignalRService.ConnectAsync(hubUrl);
             if (!connected)
                 return;
 
-            // Set up event handlers
             SignalRService.OnResultReceived(OnResultReceivedAsync);
             SignalRService.OnConnectionStateChanged(OnConnectionStateChangedAsync);
 
-            // Join scanner group
             await SignalRService.JoinScannerGroupAsync(ScannerId, ViewType?.ToLower() ?? "student");
         }
         catch (Exception ex)
@@ -221,7 +213,6 @@ else
 
             await InvokeAsync(StateHasChanged);
 
-            // Auto-clear result after 10 seconds
             _ = Task.Delay(10000).ContinueWith(async _ =>
             {
                 lastResult = null;

@@ -2,9 +2,6 @@ using UCLEventScanner.Shared.DTOs;
 
 namespace UCLEventScanner.Client.Services;
 
-/// <summary>
-/// Service for managing API calls to the backend
-/// </summary>
 public interface IApiService
 {
     Task<List<EventDto>> GetEventsAsync();

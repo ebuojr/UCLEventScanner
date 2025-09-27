@@ -1,9 +1,5 @@
 namespace UCLEventScanner.Shared.Messages;
 
-/// <summary>
-/// EIP Request-Reply Pattern: Request message for validation
-/// Sent to scan-requests-{ScannerId} queue
-/// </summary>
 public class ValidationRequestMessage
 {
     public string CorrelationId { get; set; } = string.Empty;
@@ -12,10 +8,6 @@ public class ValidationRequestMessage
     public int ScannerId { get; set; }
 }
 
-/// <summary>
-/// EIP Request-Reply Pattern: Reply message for validation
-/// Sent back using DirectReplyTo
-/// </summary>
 public class ValidationReplyMessage
 {
     public string CorrelationId { get; set; } = string.Empty;
@@ -23,10 +15,6 @@ public class ValidationReplyMessage
     public string Message { get; set; } = string.Empty;
 }
 
-/// <summary>
-/// EIP Publish-Subscribe Pattern: Result message for displays
-/// Published to topic exchange with routing key: scanner.{ScannerId}.result
-/// </summary>
 public class ValidationResultMessage
 {
     public int ScannerId { get; set; }

@@ -8,16 +8,12 @@ using UCLEventScanner.Shared.Messages;
 
 namespace UCLEventScanner.Api.Services;
 
-/// <summary>
-/// EIP: ValidationConsumer - Message-driven consumer for validation requests
-/// Consumes from dynamic queues (scan-requests-{ScannerId}), validates registration, sends reply
-/// </summary>
 public class ValidationConsumer : BackgroundService
 {
     private readonly IRabbitMqConnectionService _connectionService;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<ValidationConsumer> _logger;
-    private readonly string[] _queuePatterns = { "scan-requests-*" }; // EIP: Wildcards for consuming all scanner queues
+    private readonly string[] _queuePatterns = { "scan-requests-*" };
     private IModel? _channel;
     private const string DIRECT_EXCHANGE = "scan-requests";
 
@@ -36,20 +32,16 @@ public class ValidationConsumer : BackgroundService
         {
             _channel = await _connectionService.CreateChannelAsync();
             
-            // EIP: Set QoS for fair dispatch
             _channel.BasicQos(prefetchSize: 0, prefetchCount: 1, global: false);
 
-            // Setup consumer for all scanner queues
             await SetupQueueConsumers(stoppingToken);
 
             _logger.LogInformation("ValidationConsumer started");
 
-            // Keep the service running
             while (!stoppingToken.IsCancellationRequested)
             {
                 await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
                 
-                // Periodically check for new scanner queues
                 await RefreshQueueConsumers(stoppingToken);
             }
         }
@@ -66,19 +58,16 @@ public class ValidationConsumer : BackgroundService
             using var scope = _scopeFactory.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             
-            // Get all active scanners and setup consumers for their queues
             var activeScanners = await context.Scanners
                 .Where(s => s.IsActive)
-                .Select(s => s.Id)
                 .ToListAsync(stoppingToken);
 
-            foreach (var scannerId in activeScanners)
+            foreach (var scanner in activeScanners)
             {
-                var queueName = $"scan-requests-{scannerId}";
-                await SetupConsumerForQueue(queueName, scannerId);
+                await SetupConsumerForScanner(scanner.Id);
             }
 
-            _logger.LogInformation("Setup consumers for {ScannerCount} active scanners", activeScanners.Count);
+            _logger.LogInformation("Setup consumers for {Count} active scanners", activeScanners.Count);
         }
         catch (Exception ex)
         {
@@ -86,30 +75,31 @@ public class ValidationConsumer : BackgroundService
         }
     }
 
-    private async Task SetupConsumerForQueue(string queueName, int scannerId)
+    private async Task SetupConsumerForScanner(int scannerId)
     {
         try
         {
             if (_channel == null) return;
 
+            var queueName = $"scan-requests-{scannerId}";
+            
             var consumer = new EventingBasicConsumer(_channel);
             consumer.Received += async (model, ea) =>
             {
-                await HandleValidationRequest(scannerId, ea);
+                await HandleValidationRequest(ea);
             };
 
             _channel.BasicConsume(queue: queueName, autoAck: false, consumer: consumer);
-            _logger.LogDebug("Setup consumer for queue {QueueName}", queueName);
             
-            await Task.CompletedTask;
+            _logger.LogDebug("Setup consumer for scanner {ScannerId} queue: {QueueName}", scannerId, queueName);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to setup consumer for queue {QueueName}", queueName);
+            _logger.LogWarning(ex, "Failed to setup consumer for scanner {ScannerId}", scannerId);
         }
     }
 
-    private async Task HandleValidationRequest(int scannerId, BasicDeliverEventArgs ea)
+    private async Task HandleValidationRequest(BasicDeliverEventArgs ea)
     {
         try
         {
@@ -119,30 +109,24 @@ public class ValidationConsumer : BackgroundService
 
             if (request == null)
             {
-                _logger.LogWarning("Failed to deserialize validation request");
+                _logger.LogWarning("Invalid validation request message");
                 _channel?.BasicNack(ea.DeliveryTag, false, false);
                 return;
             }
 
-            _logger.LogInformation("Processing validation request - CorrelationId: {CorrelationId}, Student: {StudentId}", 
+            _logger.LogDebug("Processing validation request - CorrelationId: {CorrelationId}, Student: {StudentId}", 
                 request.CorrelationId, request.StudentId);
 
-            // EIP: Validate registration in database
-            var validationResult = await ValidateRegistrationAsync(request);
+            var reply = await ValidateRegistrationAsync(request);
 
-            // EIP: Send reply using DirectReplyTo
-            await SendValidationReply(ea.BasicProperties, validationResult);
+            await SendReplyAsync(ea, reply);
 
-            // Acknowledge message
             _channel?.BasicAck(ea.DeliveryTag, false);
-
-            _logger.LogInformation("Validation completed - CorrelationId: {CorrelationId}, Valid: {IsValid}", 
-                request.CorrelationId, validationResult.IsValid);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error handling validation request");
-            _channel?.BasicNack(ea.DeliveryTag, false, true); // Requeue on error
+            _logger.LogError(ex, "Error processing validation request");
+            _channel?.BasicNack(ea.DeliveryTag, false, true);
         }
     }
 
@@ -153,7 +137,6 @@ public class ValidationConsumer : BackgroundService
             using var scope = _scopeFactory.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-            // Check if student is registered for the event
             var isRegistered = await context.Registrations
                 .AnyAsync(r => r.StudentId == request.StudentId && r.EventId == request.EventId);
 
@@ -168,7 +151,6 @@ public class ValidationConsumer : BackgroundService
             }
             else
             {
-                // Check if student exists
                 var studentExists = await context.Students
                     .AnyAsync(s => s.Id == request.StudentId);
 
@@ -198,41 +180,63 @@ public class ValidationConsumer : BackgroundService
         }
     }
 
-    private async Task SendValidationReply(IBasicProperties requestProperties, ValidationReplyMessage reply)
+    private async Task SendReplyAsync(BasicDeliverEventArgs ea, ValidationReplyMessage reply)
     {
-        if (_channel == null || string.IsNullOrEmpty(requestProperties.ReplyTo))
-        {
-            _logger.LogWarning("Cannot send reply - missing channel or ReplyTo property");
-            return;
-        }
-
         try
         {
+            if (_channel == null || string.IsNullOrEmpty(ea.BasicProperties.ReplyTo)) return;
+
             var replyProperties = _channel.CreateBasicProperties();
-            replyProperties.CorrelationId = requestProperties.CorrelationId;
+            replyProperties.CorrelationId = ea.BasicProperties.CorrelationId;
 
             var replyBody = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(reply));
 
-            _channel.BasicPublish(exchange: "",
-                                routingKey: requestProperties.ReplyTo,
+            _channel.BasicPublish(exchange: string.Empty,
+                                routingKey: ea.BasicProperties.ReplyTo,
                                 basicProperties: replyProperties,
                                 body: replyBody);
 
-            _logger.LogDebug("Sent validation reply - CorrelationId: {CorrelationId}", reply.CorrelationId);
-            
-            await Task.CompletedTask;
+            _logger.LogDebug("Sent validation reply - CorrelationId: {CorrelationId}, Valid: {IsValid}", 
+                reply.CorrelationId, reply.IsValid);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error sending validation reply - CorrelationId: {CorrelationId}", reply.CorrelationId);
+            _logger.LogError(ex, "Error sending validation reply - CorrelationId: {CorrelationId}", 
+                reply.CorrelationId);
         }
+
+        await Task.CompletedTask;
     }
 
     private async Task RefreshQueueConsumers(CancellationToken stoppingToken)
     {
-        // This could be enhanced to dynamically add consumers for new scanners
-        // For now, we rely on application restart to pick up new scanners
-        await Task.CompletedTask;
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+            var activeScanners = await context.Scanners
+                .Where(s => s.IsActive)
+                .Select(s => s.Id)
+                .ToListAsync(stoppingToken);
+
+            foreach (var scannerId in activeScanners)
+            {
+                var queueName = $"scan-requests-{scannerId}";
+                try
+                {
+                    _channel?.QueueDeclarePassive(queueName);
+                }
+                catch
+                {
+                    await SetupConsumerForScanner(scannerId);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error refreshing queue consumers");
+        }
     }
 
     public override void Dispose()

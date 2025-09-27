@@ -4,10 +4,6 @@ using UCLEventScanner.Shared.DTOs;
 
 namespace UCLEventScanner.Api.Controllers;
 
-/// <summary>
-/// Controller for handling scan operations
-/// EIP: Request-Reply Pattern implementation
-/// </summary>
 [ApiController]
 [Route("api/[controller]")]
 public class ScanController : ControllerBase
@@ -21,11 +17,6 @@ public class ScanController : ControllerBase
         _logger = logger;
     }
 
-    /// <summary>
-    /// Main scan endpoint - Implements EIP Request-Reply Pattern
-    /// POST /api/scan { StudentId, EventId, ScannerId }
-    /// Publishes RequestMessage to RabbitMQ and awaits reply using CorrelationId
-    /// </summary>
     [HttpPost]
     public async Task<ActionResult<ScanResponseDto>> Scan([FromBody] ScanRequestDto scanRequest)
     {
@@ -39,7 +30,6 @@ public class ScanController : ControllerBase
             _logger.LogInformation("Scan request received - Student: {StudentId}, Event: {EventId}, Scanner: {ScannerId}", 
                 scanRequest.StudentId, scanRequest.EventId, scanRequest.ScannerId);
 
-            // EIP Request-Reply: Send request and await reply
             var scanResponse = await _scanService.ProcessScanAsync(scanRequest);
 
             _logger.LogInformation("Scan processed - Student: {StudentId}, Valid: {IsValid}, Message: {Message}", 
@@ -90,9 +80,6 @@ public class ScanController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Health check endpoint for scanners
-    /// </summary>
     [HttpGet("health/{scannerId}")]
     public async Task<ActionResult> CheckScannerHealth(int scannerId)
     {
