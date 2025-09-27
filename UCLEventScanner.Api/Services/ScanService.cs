@@ -1,7 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
 using RabbitMQ.Client;
-using RabbitMQ.Client.Events;
 using System.Collections.Concurrent;
 using System.Text;
 using UCLEventScanner.Api.Data;
@@ -13,7 +12,6 @@ namespace UCLEventScanner.Api.Services;
 public interface IScanService
 {
     Task<ScanResponseDto> ProcessScanAsync(ScanRequestDto scanRequest);
-    Task<bool> CheckScannerHealthAsync(int scannerId);
 }
 
 public class ScanService : IScanService
@@ -122,32 +120,6 @@ public class ScanService : IScanService
         finally
         {
             _pendingRequests.TryRemove(correlationId, out _);
-        }
-    }
-
-    public async Task<bool> CheckScannerHealthAsync(int scannerId)
-    {
-        try
-        {
-            using var scope = _scopeFactory.CreateScope();
-            var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            
-            var scanner = await context.Scanners.FindAsync(scannerId);
-            if (scanner == null || !scanner.IsActive)
-            {
-                return false;
-            }
-
-            using var channel = await _connectionService.CreateChannelAsync();
-            var queueName = await _queueManager.GetScanRequestQueueName(scannerId);
-            
-            var queueInfo = channel.QueueDeclarePassive(queueName);
-            return queueInfo != null;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Scanner health check failed - Scanner: {ScannerId}", scannerId);
-            return false;
         }
     }
 

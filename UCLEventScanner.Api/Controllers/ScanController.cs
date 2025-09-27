@@ -79,32 +79,4 @@ public class ScanController : ControllerBase
             });
         }
     }
-
-    [HttpGet("health/{scannerId}")]
-    public async Task<ActionResult> CheckScannerHealth(int scannerId)
-    {
-        try
-        {
-            var isHealthy = await _scanService.CheckScannerHealthAsync(scannerId);
-            
-            if (isHealthy)
-            {
-                return Ok(new { ScannerId = scannerId, Status = "Healthy", Timestamp = DateTime.UtcNow });
-            }
-            else
-            {
-                return ServiceUnavailable(new { ScannerId = scannerId, Status = "Unhealthy", Timestamp = DateTime.UtcNow });
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error checking scanner health - Scanner: {ScannerId}", scannerId);
-            return StatusCode(500, new { ScannerId = scannerId, Status = "Error", Timestamp = DateTime.UtcNow });
-        }
-    }
-
-    private ObjectResult ServiceUnavailable(object value)
-    {
-        return StatusCode(503, value);
-    }
 }
