@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
 using RabbitMQ.Client;
+using RabbitMQ.Client.Events;
 using System.Collections.Concurrent;
 using System.Text;
 using UCLEventScanner.Api.Data;
@@ -12,9 +13,10 @@ namespace UCLEventScanner.Api.Services;
 public interface IScanService
 {
     Task<ScanResponseDto> ProcessScanAsync(ScanRequestDto scanRequest);
+    Task<bool> CheckScannerHealthAsync(int scannerId);
 }
 
-public class ScanService : IScanService
+public class ScanService : IScanService, IDisposable
 {
     private readonly IRabbitMqConnectionService _connectionService;
     private readonly IDynamicQueueManager _queueManager;
@@ -24,6 +26,8 @@ public class ScanService : IScanService
     
     private readonly ConcurrentDictionary<string, TaskCompletionSource<ValidationReplyMessage>> _pendingRequests;
     private readonly Timer _timeoutTimer;
+    private IModel? _replyChannel;
+    private string? _replyQueueName;
     private const int TIMEOUT_SECONDS = 30;
     private const string DIRECT_EXCHANGE = "scan-requests";
 
@@ -41,6 +45,51 @@ public class ScanService : IScanService
         _pendingRequests = new ConcurrentDictionary<string, TaskCompletionSource<ValidationReplyMessage>>();
         
         _timeoutTimer = new Timer(CleanupTimedOutRequests, null, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
+        
+        InitializeReplyConsumer();
+    }
+
+    private async void InitializeReplyConsumer()
+    {
+        try
+        {
+            _replyChannel = await _connectionService.CreateChannelAsync();
+            _replyQueueName = _replyChannel.QueueDeclare().QueueName;
+
+            var consumer = new EventingBasicConsumer(_replyChannel);
+            consumer.Received += HandleValidationReply;
+
+            _replyChannel.BasicConsume(queue: _replyQueueName, autoAck: true, consumer: consumer);
+            
+            _logger.LogInformation("Reply consumer initialized with queue: {QueueName}", _replyQueueName);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to initialize reply consumer");
+        }
+    }
+
+    private async void HandleValidationReply(object? model, BasicDeliverEventArgs ea)
+    {
+        try
+        {
+            var body = ea.Body.ToArray();
+            var message = Encoding.UTF8.GetString(body);
+            var reply = JsonConvert.DeserializeObject<ValidationReplyMessage>(message);
+
+            if (reply != null && _pendingRequests.TryRemove(reply.CorrelationId, out var tcs))
+            {
+                tcs.SetResult(reply);
+                _logger.LogDebug("Received validation reply - CorrelationId: {CorrelationId}, Valid: {IsValid}",
+                    reply.CorrelationId, reply.IsValid);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error handling validation reply");
+        }
+        
+        await Task.CompletedTask;
     }
 
     public async Task<ScanResponseDto> ProcessScanAsync(ScanRequestDto scanRequest)
@@ -52,6 +101,11 @@ public class ScanService : IScanService
         if (scanner == null || !scanner.IsActive)
         {
             throw new InvalidOperationException($"Scanner {scanRequest.ScannerId} is not active");
+        }
+
+        if (_replyQueueName == null)
+        {
+            throw new InvalidOperationException("Reply consumer not initialized");
         }
 
         var correlationId = Guid.NewGuid().ToString();
@@ -72,11 +126,9 @@ public class ScanService : IScanService
         {
             using var channel = await _connectionService.CreateChannelAsync();
             
-            var replyQueueName = "amq.rabbitmq.reply-to";
-            
             var properties = channel.CreateBasicProperties();
             properties.CorrelationId = correlationId;
-            properties.ReplyTo = replyQueueName;
+            properties.ReplyTo = _replyQueueName;
             properties.Expiration = (TIMEOUT_SECONDS * 1000).ToString();
 
             var messageBody = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(requestMessage));
@@ -89,30 +141,26 @@ public class ScanService : IScanService
             _logger.LogInformation("Sent scan request - CorrelationId: {CorrelationId}, Scanner: {ScannerId}", 
                 correlationId, scanRequest.ScannerId);
 
-            await Task.Delay(500);
-
-            var simulatedReply = await SimulateValidationAsync(requestMessage);
+            var reply = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(TIMEOUT_SECONDS));
 
             _logger.LogInformation("Received scan reply - CorrelationId: {CorrelationId}, Valid: {IsValid}", 
-                correlationId, simulatedReply.IsValid);
+                correlationId, reply.IsValid);
 
-            await _resultBroadcaster.PublishValidationResultAsync(
+            await _resultBroadcaster.BroadcastResultAsync(
                 scanRequest.ScannerId, 
-                simulatedReply.IsValid, 
-                simulatedReply.Message,
-                scanRequest.StudentId,
-                scanRequest.EventId);
+                reply.IsValid, 
+                reply.Message);
 
             return new ScanResponseDto
             {
-                IsValid = simulatedReply.IsValid,
-                Message = simulatedReply.Message,
+                IsValid = reply.IsValid,
+                Message = reply.Message,
                 ScannerId = scanRequest.ScannerId,
                 StudentId = scanRequest.StudentId,
                 EventId = scanRequest.EventId
             };
         }
-        catch (OperationCanceledException)
+        catch (TimeoutException)
         {
             _logger.LogWarning("Scan request timed out - CorrelationId: {CorrelationId}", correlationId);
             throw new TimeoutException("Scan request timed out");
@@ -123,60 +171,35 @@ public class ScanService : IScanService
         }
     }
 
-    private async Task<ValidationReplyMessage> SimulateValidationAsync(ValidationRequestMessage request)
+    public async Task<bool> CheckScannerHealthAsync(int scannerId)
     {
         try
         {
             using var scope = _scopeFactory.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-            var isRegistered = await context.Registrations
-                .AnyAsync(r => r.StudentId == request.StudentId && r.EventId == request.EventId);
-
-            if (isRegistered)
+            
+            var scanner = await context.Scanners.FindAsync(scannerId);
+            if (scanner == null || !scanner.IsActive)
             {
-                return new ValidationReplyMessage
-                {
-                    CorrelationId = request.CorrelationId,
-                    IsValid = true,
-                    Message = "Welcome! Registration confirmed. 🎉"
-                };
+                return false;
             }
-            else
-            {
-                var studentExists = await context.Students
-                    .AnyAsync(s => s.Id == request.StudentId);
 
-                var message = studentExists 
-                    ? "Student not registered for this event. 😔"
-                    : "Student ID not found. 😔";
-
-                return new ValidationReplyMessage
-                {
-                    CorrelationId = request.CorrelationId,
-                    IsValid = false,
-                    Message = message
-                };
-            }
+            using var channel = await _connectionService.CreateChannelAsync();
+            var queueName = await _queueManager.GetScanRequestQueueName(scannerId);
+            
+            var queueInfo = channel.QueueDeclarePassive(queueName);
+            return queueInfo != null;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error validating registration - Student: {StudentId}, Event: {EventId}", 
-                request.StudentId, request.EventId);
-
-            return new ValidationReplyMessage
-            {
-                CorrelationId = request.CorrelationId,
-                IsValid = false,
-                Message = "System error. Please try again. ⚠️"
-            };
+            _logger.LogWarning(ex, "Scanner health check failed - Scanner: {ScannerId}", scannerId);
+            return false;
         }
     }
 
     private void CleanupTimedOutRequests(object? state)
     {
         var expiredKeys = new List<string>();
-        var cutoff = DateTime.UtcNow.AddMinutes(-2);
 
         foreach (var kvp in _pendingRequests)
         {
@@ -201,5 +224,21 @@ public class ScanService : IScanService
         {
             _logger.LogDebug("Cleaned up {Count} expired scan requests", expiredKeys.Count);
         }
+    }
+
+    public void Dispose()
+    {
+        _timeoutTimer?.Dispose();
+        _replyChannel?.Close();
+        _replyChannel?.Dispose();
+        
+        foreach (var kvp in _pendingRequests)
+        {
+            if (!kvp.Value.Task.IsCompleted)
+            {
+                kvp.Value.SetCanceled();
+            }
+        }
+        _pendingRequests.Clear();
     }
 }

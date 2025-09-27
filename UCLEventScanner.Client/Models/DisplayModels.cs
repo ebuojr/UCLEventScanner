@@ -1,8 +1,5 @@
 namespace UCLEventScanner.Client.Models;
 
-/// <summary>
-/// Model for display results shown on scanner displays
-/// </summary>
 public class DisplayResult
 {
     public string StudentId { get; set; } = string.Empty;
@@ -12,9 +9,6 @@ public class DisplayResult
     public DateTime Timestamp { get; set; } = DateTime.Now;
 }
 
-/// <summary>
-/// Model for scan history entries
-/// </summary>
 public class ScanHistoryEntry
 {
     public string StudentId { get; set; } = string.Empty;
@@ -25,9 +19,6 @@ public class ScanHistoryEntry
     public DateTime Timestamp { get; set; } = DateTime.Now;
 }
 
-/// <summary>
-/// Display configuration for different view types
-/// </summary>
 public static class DisplayConfig
 {
     public const string ControllerView = "controller";

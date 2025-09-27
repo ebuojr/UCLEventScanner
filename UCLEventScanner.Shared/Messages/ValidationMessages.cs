@@ -14,13 +14,3 @@ public class ValidationReplyMessage
     public bool IsValid { get; set; }
     public string Message { get; set; } = string.Empty;
 }
-
-public class ValidationResultMessage
-{
-    public int ScannerId { get; set; }
-    public bool IsValid { get; set; }
-    public string Message { get; set; } = string.Empty;
-    public string StudentId { get; set; } = string.Empty;
-    public int EventId { get; set; }
-    public DateTime Timestamp { get; set; } = DateTime.UtcNow;
-}

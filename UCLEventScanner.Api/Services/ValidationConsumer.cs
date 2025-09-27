@@ -64,7 +64,7 @@ public class ValidationConsumer : BackgroundService
 
             foreach (var scanner in activeScanners)
             {
-                await SetupConsumerForScanner(scanner.Id);
+                SetupConsumerForScanner(scanner.Id);
             }
 
             _logger.LogInformation("Setup consumers for {Count} active scanners", activeScanners.Count);
@@ -75,7 +75,7 @@ public class ValidationConsumer : BackgroundService
         }
     }
 
-    private async Task SetupConsumerForScanner(int scannerId)
+    private void SetupConsumerForScanner(int scannerId)
     {
         try
         {
@@ -229,7 +229,7 @@ public class ValidationConsumer : BackgroundService
                 }
                 catch
                 {
-                    await SetupConsumerForScanner(scannerId);
+                    SetupConsumerForScanner(scannerId);
                 }
             }
         }

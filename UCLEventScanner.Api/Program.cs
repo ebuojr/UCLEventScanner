@@ -20,9 +20,7 @@ builder.Services.AddScoped<IScanService, ScanService>();
 
 builder.Services.AddHostedService<ValidationConsumer>();
 
-builder.Services.AddSingleton<ResultBroadcaster>();
-builder.Services.AddSingleton<IResultBroadcaster>(provider => provider.GetRequiredService<ResultBroadcaster>());
-builder.Services.AddHostedService<ResultBroadcaster>(provider => provider.GetRequiredService<ResultBroadcaster>());
+builder.Services.AddSingleton<IResultBroadcaster, ResultBroadcaster>();
 
 builder.Services.AddSignalR(options =>
 {
