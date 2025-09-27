@@ -1,0 +1,178 @@
+@page "/registration"
+@using UCLEventScanner.Shared.DTOs
+@inject HttpClient Http
+@inject IConfiguration Configuration
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Event Registration</PageTitle>
+
+<div class="min-h-screen bg-gray-100">
+    <div class="max-w-2xl mx-auto px-4 py-8">
+        <div class="mb-8">
+            <h1 class="text-3xl font-bold text-gray-900 mb-2">Event Registration</h1>
+            <p class="text-gray-600">Register for upcoming UCL events</p>
+        </div>
+
+        <div class="bg-white border border-gray-300 rounded-lg p-6">
+            @if (events == null)
+            {
+                <div class="text-center py-8">
+                    <div class="animate-spin w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+                    <p class="text-gray-600">Loading events...</p>
+                </div>
+            }
+            else if (events.Count == 0)
+            {
+                <div class="text-center py-8">
+                    <div class="text-4xl mb-4">📅</div>
+                    <p class="text-gray-600">No events available for registration.</p>
+                </div>
+            }
+            else
+            {
+                <EditForm Model="registration" OnValidSubmit="SubmitRegistration">
+                    <DataAnnotationsValidator />
+                    
+                    <div class="space-y-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Select Event <span class="text-red-500">*</span>
+                            </label>
+                            <InputSelect @bind-Value="registration.EventId" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                <option value="0">-- Select an Event --</option>
+                                @foreach (var eventItem in events)
+                                {
+                                    <option value="@eventItem.Id">@eventItem.Name (@eventItem.Date.ToString("MMM dd, yyyy"))</option>
+                                }
+                            </InputSelect>
+                            <ValidationMessage For="@(() => registration.EventId)" class="text-red-500 text-sm mt-1" />
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Full Name <span class="text-red-500">*</span>
+                            </label>
+                            <InputText @bind-Value="registration.Name" 
+                                      placeholder="Enter your full name"
+                                      class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                            <ValidationMessage For="@(() => registration.Name)" class="text-red-500 text-sm mt-1" />
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Email Address <span class="text-red-500">*</span>
+                            </label>
+                            <InputText @bind-Value="registration.Email" 
+                                      type="email"
+                                      placeholder="your.name@ucl.ac.uk"
+                                      class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                            <ValidationMessage For="@(() => registration.Email)" class="text-red-500 text-sm mt-1" />
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Student ID <span class="text-red-500">*</span>
+                            </label>
+                            <InputText @bind-Value="registration.StudentId" 
+                                      placeholder="e.g., STU001"
+                                      class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                            <ValidationMessage For="@(() => registration.StudentId)" class="text-red-500 text-sm mt-1" />
+                        </div>
+
+                        <button type="submit" 
+                                disabled="@isSubmitting"
+                                class="@(isSubmitting ? "bg-gray-400" : "bg-blue-600 hover:bg-blue-700") text-white px-4 py-2 rounded-lg w-full disabled:cursor-not-allowed transition-colors">
+                            @if (isSubmitting)
+                            {
+                                <span>Registering...</span>
+                            }
+                            else
+                            {
+                                <span>Register for Event</span>
+                            }
+                        </button>
+                    </div>
+                </EditForm>
+            }
+
+            @if (registrationSuccess)
+            {
+                <div class="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+                    <div class="flex items-center mb-2">
+                        <span class="text-green-600 text-xl mr-2">✓</span>
+                        <span class="text-green-800 font-semibold">Registration successful! 🎉</span>
+                    </div>
+                    <p class="text-green-700 text-sm">You can now use the scanners at the event.</p>
+                </div>
+            }
+
+            <div class="text-center mt-6">
+                <p class="text-sm text-gray-600">
+                    Already registered? Use the <a href="/scanners" class="text-blue-600 hover:text-blue-800 underline">Scanner</a> page at the event.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<EventDto>? events;
+    private CreateRegistrationDto registration = new CreateRegistrationDto();
+    private bool isSubmitting = false;
+    private bool registrationSuccess = false;
+
+    private string GetApiUrl(string endpoint)
+    {
+        var baseUrl = Configuration["ApiBaseUrl"] ?? "https://localhost:49675/";
+        return $"{baseUrl.TrimEnd('/')}/{endpoint}";
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadEvents();
+    }
+
+    private async Task LoadEvents()
+    {
+        try
+        {
+            events = await Http.GetFromJsonAsync<List<EventDto>>(GetApiUrl("api/events"));
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to load events: {ex.Message}");
+            events = new List<EventDto>();
+        }
+    }
+
+    private async Task SubmitRegistration()
+    {
+        isSubmitting = true;
+        registrationSuccess = false;
+        
+        try
+        {
+            var response = await Http.PostAsJsonAsync(GetApiUrl("api/registrations"), registration);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                registrationSuccess = true;
+                registration = new CreateRegistrationDto(); // Reset form
+                await JSRuntime.InvokeVoidAsync("scrollTo", 0, 0); // Scroll to top to show success message
+            }
+            else
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                await JSRuntime.InvokeVoidAsync("alert", $"Registration failed: {errorContent}");
+            }
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Error during registration: {ex.Message}");
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+}

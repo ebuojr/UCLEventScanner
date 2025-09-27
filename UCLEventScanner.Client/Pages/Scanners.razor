@@ -1,0 +1,356 @@
+﻿@page "/scanners"
+@using UCLEventScanner.Shared.DTOs
+@inject HttpClient Http
+@inject IConfiguration Configuration
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Event Scanners</PageTitle>
+
+<div class="min-h-screen bg-gray-100">
+    <div class="max-w-7xl mx-auto px-4 py-8">
+        <div class="mb-8">
+            <h1 class="text-3xl font-bold text-gray-900 mb-2">Event Scanners</h1>
+            <p class="text-gray-600">Scan student IDs at event entry points</p>
+        </div>
+
+        @if (events == null || scanners == null)
+        {
+            <div class="bg-white border border-gray-300 rounded-lg p-8 text-center">
+                <div class="animate-spin w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+                <p class="text-gray-600">Loading scanners...</p>
+            </div>
+        }
+        else if (activeScanners.Count == 0)
+        {
+            <div class="bg-white border border-gray-300 rounded-lg p-8 text-center">
+                <div class="text-4xl mb-4">🔍</div>
+                <h2 class="text-xl font-semibold text-gray-900 mb-2">No Active Scanners</h2>
+                <p class="text-gray-600">Please contact the administrator to activate scanner lines.</p>
+            </div>
+        }
+        else
+        {
+            <!-- Event Selection -->
+            <div class="bg-white border border-gray-300 rounded-lg p-6 mb-6">
+                <h2 class="text-lg font-semibold text-gray-900 mb-4">Select Event</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    @foreach (var eventItem in events)
+                    {
+                        <button @onclick="@(() => SelectEvent(eventItem.Id))" 
+                                class="@(selectedEventId == eventItem.Id ? "bg-blue-50 border-blue-300 text-blue-900" : "bg-white border-gray-300 text-gray-900 hover:bg-gray-50") border rounded-lg p-4 text-left transition-colors">
+                            <h3 class="font-medium mb-1">@eventItem.Name</h3>
+                            <p class="text-sm text-gray-600">@eventItem.Date.ToString("MMM dd, yyyy")</p>
+                            <p class="text-sm text-gray-600">@eventItem.RegistrationCount registrations</p>
+                        </button>
+                    }
+                </div>
+            </div>
+
+            @if (selectedEventId > 0)
+            {
+                <!-- Scanner Stations -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                    @foreach (var scanner in activeScanners)
+                    {
+                        <div class="bg-white border border-gray-300 rounded-lg p-6">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="text-lg font-semibold text-gray-900">@scanner.Name</h3>
+                                <span class="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full border border-green-200">Active</span>
+                            </div>
+
+                            <!-- Student ID Input -->
+                            <div class="mb-4">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Student ID</label>
+                                <div class="flex gap-2">
+                                    <input @bind="studentIds[scanner.Id]" 
+                                           @onkeypress="@((e) => HandleKeyPress(e, scanner.Id))"
+                                           placeholder="Enter Student ID..."
+                                           class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                                    <button @onclick="@(() => ScanStudent(scanner.Id))" 
+                                            disabled="@scanningStatus.GetValueOrDefault(scanner.Id, false)"
+                                            class="@(scanningStatus.GetValueOrDefault(scanner.Id, false) ? "bg-gray-400" : "bg-blue-600 hover:bg-blue-700") text-white px-4 py-2 rounded-lg disabled:cursor-not-allowed transition-colors">
+                                        @(scanningStatus.GetValueOrDefault(scanner.Id, false) ? "Scanning..." : "Scan")
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Last Scan Result -->
+                            @if (lastScanResults.ContainsKey(scanner.Id))
+                            {
+                                var result = lastScanResults[scanner.Id];
+                                <div class="@(result.IsValid ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200") border rounded-lg p-3">
+                                    <div class="flex items-center gap-2 mb-2">
+                                        <span class="@(result.IsValid ? "text-green-600" : "text-red-600")">@(result.IsValid ? "✓" : "✗")</span>
+                                        <span class="@(result.IsValid ? "text-green-800" : "text-red-800") font-medium">@(result.IsValid ? "Valid" : "Invalid")</span>
+                                    </div>
+                                    <p class="@(result.IsValid ? "text-green-700" : "text-red-700") text-sm mb-1">@result.Message</p>
+                                    <p class="@(result.IsValid ? "text-green-600" : "text-red-600") text-sm">Student: @result.StudentId</p>
+                                </div>
+                            }
+
+                            <!-- Recent Scans for this scanner -->
+                            @if (recentScans.Where(s => s.ScannerId == scanner.Id).Any())
+                            {
+                                <div class="mt-4">
+                                    <h4 class="text-sm font-medium text-gray-700 mb-2">Recent Scans</h4>
+                                    <div class="space-y-2">
+                                        @foreach (var scan in recentScans.Where(s => s.ScannerId == scanner.Id).Take(3))
+                                        {
+                                            <div class="@(scan.IsValid ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200") border rounded p-2">
+                                                <div class="flex justify-between items-center">
+                                                    <div class="flex items-center gap-2">
+                                                        <span class="@(scan.IsValid ? "text-green-600" : "text-red-600")">@(scan.IsValid ? "✓" : "✗")</span>
+                                                        <span class="text-sm font-medium">@scan.StudentId</span>
+                                                    </div>
+                                                    <span class="text-xs text-gray-600">@scan.Timestamp.ToString("HH:mm:ss")</span>
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+
+                <!-- Recent Scans Summary -->
+                <div class="bg-white border border-gray-300 rounded-lg p-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Recent Activity</h3>
+                    @if (recentScans.Count == 0)
+                    {
+                        <p class="text-center py-8 text-gray-500">No scans yet...</p>
+                    }
+                    else
+                    {
+                        <div class="space-y-3 max-h-80 overflow-y-auto">
+                            @foreach (var scan in recentScans.OrderByDescending(s => s.Timestamp).Take(20))
+                            {
+                                <div class="@(scan.IsValid ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200") border rounded-lg p-3">
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center gap-3">
+                                            <span class="@(scan.IsValid ? "text-green-600" : "text-red-600")">@(scan.IsValid ? "✓" : "✗")</span>
+                                            <div>
+                                                <p class="font-medium">@scan.StudentId</p>
+                                                <p class="text-sm text-gray-600">@activeScanners.FirstOrDefault(s => s.Id == scan.ScannerId)?.Name</p>
+                                            </div>
+                                        </div>
+                                        <div class="text-right">
+                                            <p class="@(scan.IsValid ? "text-green-700" : "text-red-700") text-sm">@scan.Message</p>
+                                            <p class="text-xs text-gray-500">@scan.Timestamp.ToString("HH:mm:ss")</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        }
+    </div>
+</div>
+
+@code {
+    private List<EventDto>? events;
+    private List<ScannerDto>? scanners;
+    private int selectedEventId = 0;
+    private Dictionary<int, string> studentIds = new Dictionary<int, string>();
+    private Dictionary<int, bool> scanningStatus = new Dictionary<int, bool>();
+    private Dictionary<int, ScanResponseDto> lastScanResults = new Dictionary<int, ScanResponseDto>();
+    private List<ScanResultForDisplay> recentScans = new List<ScanResultForDisplay>();
+
+    private List<ScannerDto> activeScanners => scanners?.Where(s => s.IsActive).ToList() ?? new List<ScannerDto>();
+
+    private string GetApiUrl(string endpoint)
+    {
+        var baseUrl = Configuration["ApiBaseUrl"] ?? "https://localhost:49675/";
+        return $"{baseUrl.TrimEnd('/')}/{endpoint}";
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        try
+        {
+            var eventsTask = Http.GetFromJsonAsync<List<EventDto>>(GetApiUrl("api/events"));
+            var scannersTask = Http.GetFromJsonAsync<List<ScannerDto>>(GetApiUrl("api/scanners"));
+
+            events = await eventsTask;
+            scanners = await scannersTask;
+
+            // Auto-select first event if available
+            if (events?.Count > 0)
+            {
+                selectedEventId = events.First().Id;
+            }
+
+            // Initialize dictionaries for active scanners
+            foreach (var scanner in activeScanners)
+            {
+                studentIds[scanner.Id] = "";
+                scanningStatus[scanner.Id] = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to load data: {ex.Message}");
+        }
+    }
+
+    private void SelectEvent(int eventId)
+    {
+        selectedEventId = eventId;
+        
+        // Clear scan history when switching events
+        recentScans.Clear();
+        lastScanResults.Clear();
+        
+        // Reset input fields
+        foreach (var scanner in activeScanners)
+        {
+            studentIds[scanner.Id] = "";
+            scanningStatus[scanner.Id] = false;
+        }
+        
+        StateHasChanged();
+    }
+
+    private async Task HandleKeyPress(KeyboardEventArgs e, int scannerId)
+    {
+        if (e.Key == "Enter")
+        {
+            await ScanStudent(scannerId);
+        }
+    }
+
+    private async Task ScanStudent(int scannerId)
+    {
+        var studentId = studentIds.GetValueOrDefault(scannerId, "").Trim();
+        
+        // Input validation
+        if (string.IsNullOrWhiteSpace(studentId))
+        {
+            await JSRuntime.InvokeVoidAsync("alert", "Please enter a Student ID");
+            return;
+        }
+
+        if (studentId.Length < 3)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", "Student ID must be at least 3 characters long");
+            return;
+        }
+
+        if (selectedEventId == 0)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", "Please select an event first");
+            return;
+        }
+
+        scanningStatus[scannerId] = true;
+        StateHasChanged();
+
+        try
+        {
+            var scanRequest = new ScanRequestDto
+            {
+                StudentId = studentId,
+                EventId = selectedEventId,
+                ScannerId = scannerId
+            };
+
+            var response = await Http.PostAsJsonAsync(GetApiUrl("api/scan"), scanRequest);
+            var result = await response.Content.ReadFromJsonAsync<ScanResponseDto>();
+
+            if (result != null)
+            {
+                lastScanResults[scannerId] = result;
+
+                // Add to recent scans history
+                var displayResult = new ScanResultForDisplay
+                {
+                    StudentId = result.StudentId,
+                    IsValid = result.IsValid,
+                    Message = result.Message,
+                    ScannerId = scannerId,
+                    Timestamp = DateTime.Now
+                };
+
+                recentScans.Insert(0, displayResult);
+
+                // Keep only last 50 scans
+                if (recentScans.Count > 50)
+                {
+                    recentScans.RemoveAt(50);
+                }
+
+                // Clear input after successful scan attempt
+                studentIds[scannerId] = "";
+            }
+            else
+            {
+                // Handle null response
+                var nullResult = new ScanResponseDto
+                {
+                    StudentId = studentId,
+                    IsValid = false,
+                    Message = "No response from server",
+                    ScannerId = scannerId,
+                    EventId = selectedEventId
+                };
+                lastScanResults[scannerId] = nullResult;
+                
+                // Add to recent scans even for errors
+                var displayResult = new ScanResultForDisplay
+                {
+                    StudentId = studentId,
+                    IsValid = false,
+                    Message = "No response from server",
+                    ScannerId = scannerId,
+                    Timestamp = DateTime.Now
+                };
+                recentScans.Insert(0, displayResult);
+            }
+        }
+        catch (Exception ex)
+        {
+            var errorResult = new ScanResponseDto
+            {
+                StudentId = studentId,
+                IsValid = false,
+                Message = $"Error: {ex.Message}",
+                ScannerId = scannerId,
+                EventId = selectedEventId
+            };
+
+            lastScanResults[scannerId] = errorResult;
+            
+            // Add error to recent scans
+            var displayResult = new ScanResultForDisplay
+            {
+                StudentId = studentId,
+                IsValid = false,
+                Message = $"Error: {ex.Message}",
+                ScannerId = scannerId,
+                Timestamp = DateTime.Now
+            };
+            recentScans.Insert(0, displayResult);
+        }
+        finally
+        {
+            scanningStatus[scannerId] = false;
+            StateHasChanged();
+        }
+    }
+
+    private class ScanResultForDisplay
+    {
+        public string StudentId { get; set; } = "";
+        public bool IsValid { get; set; }
+        public string Message { get; set; } = "";
+        public int ScannerId { get; set; }
+        public DateTime Timestamp { get; set; }
+    }
+}

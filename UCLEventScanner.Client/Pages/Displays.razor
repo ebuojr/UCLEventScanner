@@ -1,0 +1,245 @@
+@page "/displays"
+@page "/displays/{ScannerId:int}/{ViewType}"
+@using Microsoft.AspNetCore.SignalR.Client
+@using UCLEventScanner.Client.Models
+@using UCLEventScanner.Client.Services
+@using UCLEventScanner.Shared.DTOs
+
+@implements IAsyncDisposable
+@inject IApiService ApiService
+@inject ISignalRService SignalRService
+@inject IConfiguration Configuration
+@inject NavigationManager Navigation
+
+<PageTitle>Scanner Display @(ScannerId > 0 ? $"- {ViewType} View" : "")</PageTitle>
+
+@if (ScannerId > 0 && !string.IsNullOrEmpty(ViewType))
+{
+    <!-- Individual Display View -->
+    <div class="min-h-screen bg-gray-100 flex items-center justify-center">
+        <div class="max-w-2xl mx-auto px-4">
+            <div class="bg-white border border-gray-300 rounded-lg p-8 text-center">
+                <div class="mb-6">
+                    <h1 class="text-2xl font-bold text-gray-900 mb-2">@DisplayConfig.GetDisplayTitle(ViewType, scannerName)</h1>
+                    <p class="text-gray-600">@DisplayConfig.GetDisplaySubtitle(ViewType)</p>
+                </div>
+
+                <div class="mb-8">
+                    @if (lastResult != null)
+                    {
+                        <div class="text-6xl mb-4 @(lastResult.IsValid ? "text-green-600" : "text-red-600")">
+                            @(lastResult.IsValid? DisplayConfig.GetSuccessIcon(ViewType) : DisplayConfig.GetErrorIcon(ViewType))
+                        </div>
+
+                        @if (ViewType.ToLower() == DisplayConfig.ControllerView)
+                        {
+                            <p class="text-lg font-medium mb-2 text-gray-900">@lastResult.StudentId</p>
+                            <p class="text-gray-600 mb-2">@lastResult.Message</p>
+                            <p class="text-sm text-gray-500">@lastResult.Timestamp.ToString("HH:mm:ss")</p>
+                        }
+                        else
+                        {
+                            <h2 class="text-2xl font-bold mb-4 @(lastResult.IsValid ? "text-green-600" : "text-red-600")">
+                                @(lastResult.IsValid ? "Welcome!" : "Access Denied")
+                            </h2>
+                            <p class="text-lg text-gray-700 mb-4">@lastResult.Message</p>
+                            @if (lastResult.IsValid)
+                            {
+                                <p class="text-green-600 font-medium">Enjoy the event!</p>
+                            }
+                            else
+                            {
+                                <p class="text-red-600 font-medium">Please check your registration</p>
+                            }
+                        }
+                    }
+                    else
+                    {
+                        <div class="text-6xl mb-4 text-gray-400">@DisplayConfig.GetWaitingIcon(ViewType)</div>
+                        <p class="text-gray-600">Waiting for scan...</p>
+                    }
+                </div>
+
+                <!-- Connection Status -->
+                <div class="flex items-center justify-center space-x-2">
+                    <div class="@(SignalRService.IsConnected ? "bg-green-500" : "bg-red-500") w-3 h-3 rounded-full"></div>
+                    <span class="text-sm text-gray-600">@(SignalRService.IsConnected ? "Connected" : "Disconnected")</span>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    <!-- Display Selection Page -->
+    <div class="min-h-screen bg-gray-100">
+        <div class="max-w-6xl mx-auto px-4 py-8">
+            <div class="text-center mb-8">
+                <h1 class="text-3xl font-bold text-gray-900 mb-2">Scanner Displays</h1>
+                <p class="text-gray-600">Choose a display view for real-time scanner results</p>
+            </div>
+
+            @if (isLoading)
+            {
+                <div class="bg-white border border-gray-300 rounded-lg p-12 text-center">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                    <p class="text-gray-600">Loading displays...</p>
+                </div>
+            }
+            else if (activeScanners.Count == 0)
+            {
+                <div class="bg-white border border-gray-300 rounded-lg p-12 text-center">
+                    <div class="text-6xl mb-4">🔍</div>
+                    <h2 class="text-xl font-bold text-gray-900 mb-2">No Active Scanners</h2>
+                    <p class="text-gray-600">Please contact the administrator to activate scanner lines.</p>
+                </div>
+            }
+            else
+            {
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                    @foreach (var scanner in activeScanners)
+                    {
+                        <div class="bg-white border border-gray-300 rounded-lg p-6">
+                            <div class="text-center mb-6">
+                                <h3 class="text-lg font-semibold text-gray-900">@scanner.Name</h3>
+                            </div>
+
+                            <div class="space-y-3">
+                                <!-- Controller Display -->
+                                <a href="/displays/@scanner.Id/controller" class="block w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-lg text-center transition-colors">
+                                    <span class="text-2xl block mb-1">🖥️</span>
+                                    <div class="font-semibold">Controller View</div>
+                                    <div class="text-sm opacity-90">Large icons for staff monitoring</div>
+                                </a>
+
+                                <!-- Student Display -->
+                                <a href="/displays/@scanner.Id/student" class="block w-full bg-green-600 hover:bg-green-700 text-white px-4 py-3 rounded-lg text-center transition-colors">
+                                    <span class="text-2xl block mb-1">👥</span>
+                                    <div class="font-semibold">Student View</div>
+                                    <div class="text-sm opacity-90">Friendly messages for attendees</div>
+                                </a>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int ScannerId { get; set; }
+    [Parameter] public string? ViewType { get; set; }
+
+    private List<ScannerDto> activeScanners = new();
+    private DisplayResult? lastResult;
+    private string scannerName = "";
+    private string eventName = "";
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync();
+
+        if (ScannerId > 0 && !string.IsNullOrEmpty(ViewType))
+        {
+            await InitializeDisplayAsync();
+        }
+    }
+
+    private async Task LoadDataAsync()
+    {
+        try
+        {
+            isLoading = true;
+            StateHasChanged();
+
+            var scannersTask = ApiService.GetActiveScannersAsync();
+            var eventsTask = ApiService.GetEventsAsync();
+
+            await Task.WhenAll(scannersTask, eventsTask);
+
+            activeScanners = await scannersTask;
+            var events = await eventsTask;
+
+            if (ScannerId > 0)
+            {
+                var scanner = activeScanners.FirstOrDefault(s => s.Id == ScannerId);
+                scannerName = scanner?.Name ?? $"Scanner {ScannerId}";
+                eventName = events.FirstOrDefault()?.Name ?? "Event";
+            }
+        }
+        catch (Exception)
+        {
+            // Handle error silently - UI will show appropriate state
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task InitializeDisplayAsync()
+    {
+        try
+        {
+            // Get API base URL and construct SignalR hub URL
+            var apiBaseUrl = Configuration["ApiBaseUrl"];
+            var hubUrl = $"{apiBaseUrl.TrimEnd('/')}/validationHub";
+
+            // Connect to SignalR
+            var connected = await SignalRService.ConnectAsync(hubUrl);
+            if (!connected)
+                return;
+
+            // Set up event handlers
+            SignalRService.OnResultReceived(OnResultReceivedAsync);
+            SignalRService.OnConnectionStateChanged(OnConnectionStateChangedAsync);
+
+            // Join scanner group
+            await SignalRService.JoinScannerGroupAsync(ScannerId, ViewType?.ToLower() ?? "student");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Error initializing display.", ex.Message);
+        }
+    }
+
+    private async Task OnResultReceivedAsync(int scannerId, bool isValid, string message)
+    {
+        if (scannerId == ScannerId)
+        {
+            lastResult = new DisplayResult
+            {
+                StudentId = "***", // Privacy protection
+                ScannerId = scannerId,
+                IsValid = isValid,
+                Message = message,
+                Timestamp = DateTime.Now
+            };
+
+            await InvokeAsync(StateHasChanged);
+
+            // Auto-clear result after 10 seconds
+            _ = Task.Delay(10000).ContinueWith(async _ =>
+            {
+                lastResult = null;
+                await InvokeAsync(StateHasChanged);
+            });
+        }
+    }
+
+    private async Task OnConnectionStateChangedAsync(HubConnectionState state)
+    {
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (SignalRService != null)
+        {
+            await SignalRService.DisposeAsync();
+        }
+    }
+}

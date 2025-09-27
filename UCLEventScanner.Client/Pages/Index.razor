@@ -1,0 +1,96 @@
+@page "/"
+
+<div class="min-h-screen bg-gray-100">
+    <div class="max-w-7xl mx-auto px-4 py-8">
+        <div class="mb-8">
+            <h1 class="text-3xl font-bold text-gray-900 mb-2">UCL Event Scanner</h1>
+            <p class="text-gray-600">Event management system with real-time scanning</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            <a href="/registration" class="bg-white border border-gray-300 rounded-lg p-6 hover:bg-gray-50 transition-colors">
+                <div class="text-3xl mb-3">📝</div>
+                <h3 class="text-lg font-semibold text-gray-900 mb-1">Registration</h3>
+                <p class="text-gray-600 text-sm">Register for events</p>
+            </a>
+
+            <a href="/scanners" class="bg-white border border-gray-300 rounded-lg p-6 hover:bg-gray-50 transition-colors">
+                <div class="text-3xl mb-3">📱</div>
+                <h3 class="text-lg font-semibold text-gray-900 mb-1">Scanners</h3>
+                <p class="text-gray-600 text-sm">Scan student IDs</p>
+            </a>
+
+            <a href="/displays" class="bg-white border border-gray-300 rounded-lg p-6 hover:bg-gray-50 transition-colors">
+                <div class="text-3xl mb-3">🖥️</div>
+                <h3 class="text-lg font-semibold text-gray-900 mb-1">Displays</h3>
+                <p class="text-gray-600 text-sm">Real-time results</p>
+            </a>
+
+            <a href="/admin" class="bg-white border border-gray-300 rounded-lg p-6 hover:bg-gray-50 transition-colors">
+                <div class="text-3xl mb-3">⚙️</div>
+                <h3 class="text-lg font-semibold text-gray-900 mb-1">Admin</h3>
+                <p class="text-gray-600 text-sm">Manage events</p>
+            </a>
+        </div>
+
+        <div class="bg-white border border-gray-300 rounded-lg p-6 mb-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-6">System Features</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div class="text-center">
+                    <div class="text-3xl mb-3">🔄</div>
+                    <h3 class="text-base font-semibold text-gray-900 mb-1">Enterprise Integration</h3>
+                    <p class="text-gray-600 text-sm">RabbitMQ messaging patterns</p>
+                </div>
+                <div class="text-center">
+                    <div class="text-3xl mb-3">⚡</div>
+                    <h3 class="text-base font-semibold text-gray-900 mb-1">Real-time Updates</h3>
+                    <p class="text-gray-600 text-sm">SignalR integration</p>
+                </div>
+                <div class="text-center">
+                    <div class="text-3xl mb-3">🔧</div>
+                    <h3 class="text-base font-semibold text-gray-900 mb-1">Dynamic Scaling</h3>
+                    <p class="text-gray-600 text-sm">Add scanner lines instantly</p>
+                </div>
+                <div class="text-center">
+                    <div class="text-3xl mb-3">🗄️</div>
+                    <h3 class="text-base font-semibold text-gray-900 mb-1">SQLite Database</h3>
+                    <p class="text-gray-600 text-sm">Entity Framework Core</p>
+                </div>
+                <div class="text-center">
+                    <div class="text-3xl mb-3">🎨</div>
+                    <h3 class="text-base font-semibold text-gray-900 mb-1">Modern UI</h3>
+                    <p class="text-gray-600 text-sm">Blazor Server with TailwindCSS</p>
+                </div>
+                <div class="text-center">
+                    <div class="text-3xl mb-3">🔐</div>
+                    <h3 class="text-base font-semibold text-gray-900 mb-1">Validation System</h3>
+                    <p class="text-gray-600 text-sm">Automatic registration checks</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white border border-gray-300 rounded-lg p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-6">Getting Started</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <h3 class="text-base font-semibold text-gray-900 mb-3">For Event Organizers</h3>
+                    <ol class="list-decimal list-inside space-y-1 text-gray-600">
+                        <li>Create events in Admin panel</li>
+                        <li>Open scanner lines as needed</li>
+                        <li>Share registration link</li>
+                        <li>Monitor via Displays</li>
+                    </ol>
+                </div>
+                <div>
+                    <h3 class="text-base font-semibold text-gray-900 mb-3">For Attendees</h3>
+                    <ol class="list-decimal list-inside space-y-1 text-gray-600">
+                        <li>Register with Student ID</li>
+                        <li>Bring ID to event</li>
+                        <li>Scan at entry point</li>
+                        <li>Enjoy the event!</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
