@@ -21,7 +21,6 @@ public class ScanService : IScanService, IDisposable
     private readonly IRabbitMqConnectionService _connectionService;
     private readonly IDynamicQueueManager _queueManager;
     private readonly IServiceScopeFactory _scopeFactory;
-    private readonly ILogger<ScanService> _logger;
     private readonly IResultBroadcaster _resultBroadcaster;
     
     private readonly ConcurrentDictionary<string, TaskCompletionSource<ValidationReplyMessage>> _pendingRequests;
@@ -34,13 +33,11 @@ public class ScanService : IScanService, IDisposable
     public ScanService(IRabbitMqConnectionService connectionService,
                       IDynamicQueueManager queueManager,
                       IServiceScopeFactory scopeFactory,
-                      ILogger<ScanService> logger,
                       IResultBroadcaster resultBroadcaster)
     {
         _connectionService = connectionService;
         _queueManager = queueManager;
         _scopeFactory = scopeFactory;
-        _logger = logger;
         _resultBroadcaster = resultBroadcaster;
         _pendingRequests = new ConcurrentDictionary<string, TaskCompletionSource<ValidationReplyMessage>>();
         
@@ -60,12 +57,9 @@ public class ScanService : IScanService, IDisposable
             consumer.Received += HandleValidationReply;
 
             _replyChannel.BasicConsume(queue: _replyQueueName, autoAck: true, consumer: consumer);
-            
-            _logger.LogInformation("Reply consumer initialized with queue: {QueueName}", _replyQueueName);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            _logger.LogError(ex, "Failed to initialize reply consumer");
         }
     }
 
@@ -80,13 +74,10 @@ public class ScanService : IScanService, IDisposable
             if (reply != null && _pendingRequests.TryRemove(reply.CorrelationId, out var tcs))
             {
                 tcs.SetResult(reply);
-                _logger.LogDebug("Received validation reply - CorrelationId: {CorrelationId}, Valid: {IsValid}",
-                    reply.CorrelationId, reply.IsValid);
             }
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            _logger.LogError(ex, "Error handling validation reply");
         }
         
         await Task.CompletedTask;
@@ -138,13 +129,7 @@ public class ScanService : IScanService, IDisposable
                                basicProperties: properties,
                                body: messageBody);
 
-            _logger.LogInformation("Sent scan request - CorrelationId: {CorrelationId}, Scanner: {ScannerId}", 
-                correlationId, scanRequest.ScannerId);
-
             var reply = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(TIMEOUT_SECONDS));
-
-            _logger.LogInformation("Received scan reply - CorrelationId: {CorrelationId}, Valid: {IsValid}", 
-                correlationId, reply.IsValid);
 
             await _resultBroadcaster.BroadcastResultAsync(
                 scanRequest.ScannerId, 
@@ -162,7 +147,6 @@ public class ScanService : IScanService, IDisposable
         }
         catch (TimeoutException)
         {
-            _logger.LogWarning("Scan request timed out - CorrelationId: {CorrelationId}", correlationId);
             throw new TimeoutException("Scan request timed out");
         }
         finally
@@ -190,9 +174,8 @@ public class ScanService : IScanService, IDisposable
             var queueInfo = channel.QueueDeclarePassive(queueName);
             return queueInfo != null;
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            _logger.LogWarning(ex, "Scanner health check failed - Scanner: {ScannerId}", scannerId);
             return false;
         }
     }
@@ -222,7 +205,6 @@ public class ScanService : IScanService, IDisposable
 
         if (expiredKeys.Count > 0)
         {
-            _logger.LogDebug("Cleaned up {Count} expired scan requests", expiredKeys.Count);
         }
     }
 

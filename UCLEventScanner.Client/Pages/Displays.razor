@@ -192,9 +192,8 @@ else
 
             await SignalRService.JoinScannerGroupAsync(ScannerId, ViewType?.ToLower() ?? "student");
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            Console.WriteLine("Error initializing display.", ex.Message);
         }
     }
 

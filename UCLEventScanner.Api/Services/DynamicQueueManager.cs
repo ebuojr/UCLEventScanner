@@ -14,18 +14,15 @@ public class DynamicQueueManager : IDynamicQueueManager
 {
     private readonly IRabbitMqConnectionService _connectionService;
     private readonly IServiceScopeFactory _scopeFactory;
-    private readonly ILogger<DynamicQueueManager> _logger;
 
     private const string DIRECT_EXCHANGE = "scan-requests";
     private const string QUEUE_PREFIX = "scan-requests-";
     
     public DynamicQueueManager(IRabbitMqConnectionService connectionService, 
-                              IServiceScopeFactory scopeFactory,
-                              ILogger<DynamicQueueManager> logger)
+                              IServiceScopeFactory scopeFactory)
     {
         _connectionService = connectionService;
         _scopeFactory = scopeFactory;
-        _logger = logger;
     }
 
     public async Task InitializeExchanges()
@@ -36,9 +33,8 @@ public class DynamicQueueManager : IDynamicQueueManager
             
             channel.ExchangeDeclare(exchange: DIRECT_EXCHANGE, type: ExchangeType.Direct, durable: true);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            _logger.LogError(ex, "Failed to initialize exchanges");
             throw;
         }
     }
@@ -51,9 +47,8 @@ public class DynamicQueueManager : IDynamicQueueManager
 
             await SetupQueuesForScannerInternal(channel, scannerId);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            _logger.LogError(ex, "Failed to setup queues for scanner {ScannerId}", scannerId);
             throw;
         }
     }
@@ -67,9 +62,8 @@ public class DynamicQueueManager : IDynamicQueueManager
 
             channel.QueueDelete(queue: queueName, ifUnused: false, ifEmpty: false);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            _logger.LogError(ex, "Failed to delete queues for scanner {ScannerId}", scannerId);
             throw;
         }
     }

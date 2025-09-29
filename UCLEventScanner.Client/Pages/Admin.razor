@@ -158,9 +158,8 @@
         {
             events = await Http.GetFromJsonAsync<List<EventDto>>(GetApiUrl("api/events"));
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            Console.WriteLine($"Failed to load events: {ex.Message}");
         }
     }
 
@@ -170,9 +169,8 @@
         {
             scanners = await Http.GetFromJsonAsync<List<ScannerDto>>(GetApiUrl("api/scanners"));
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            Console.WriteLine($"Failed to load scanners: {ex.Message}");
         }
     }
 

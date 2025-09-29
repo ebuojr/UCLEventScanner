@@ -11,13 +11,10 @@ public interface IRabbitMqConnectionService
 public class RabbitMqConnectionService : IRabbitMqConnectionService, IDisposable
 {
     private readonly IConnection _connection;
-    private readonly ILogger<RabbitMqConnectionService> _logger;
     private bool _disposed = false;
 
-    public RabbitMqConnectionService(ILogger<RabbitMqConnectionService> logger)
+    public RabbitMqConnectionService()
     {
-        _logger = logger;
-        
         var factory = new ConnectionFactory()
         {
             HostName = "localhost",
@@ -32,11 +29,9 @@ public class RabbitMqConnectionService : IRabbitMqConnectionService, IDisposable
         try
         {
             _connection = factory.CreateConnection("UCLEventScanner");
-            _logger.LogInformation("RabbitMQ connection established");
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            _logger.LogError(ex, "Failed to establish RabbitMQ connection");
             throw;
         }
     }
@@ -68,7 +63,6 @@ public class RabbitMqConnectionService : IRabbitMqConnectionService, IDisposable
             _connection?.Close();
             _connection?.Dispose();
             _disposed = true;
-            _logger.LogInformation("RabbitMQ connection disposed");
         }
     }
 }

@@ -82,10 +82,7 @@ using (var scope = app.Services.CreateScope())
     try
     {
         context.Database.EnsureCreated();
-        app.Logger.LogInformation("Database initialized successfully");
-        
         await queueManager.InitializeExchanges();
-        app.Logger.LogInformation("RabbitMQ exchanges initialized");
         
         var activeScanners = await context.Scanners.Where(s => s.IsActive).ToListAsync();
         foreach (var scanner in activeScanners)

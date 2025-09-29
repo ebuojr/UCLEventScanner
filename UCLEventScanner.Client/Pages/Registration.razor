@@ -131,9 +131,8 @@
         {
             events = await Http.GetFromJsonAsync<List<EventDto>>(GetApiUrl("api/events"));
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            Console.WriteLine($"Failed to load events: {ex.Message}");
             events = new List<EventDto>();
         }
     }
