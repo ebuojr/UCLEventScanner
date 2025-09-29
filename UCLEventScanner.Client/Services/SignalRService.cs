@@ -11,8 +11,6 @@ public interface ISignalRService : IAsyncDisposable
     
     Task<bool> ConnectAsync(string hubUrl);
     Task DisconnectAsync();
-    Task JoinScannerGroupAsync(int scannerId, string viewType);
-    Task LeaveScannerGroupAsync(int scannerId, string viewType);
     
     void OnResultReceived(Func<int, bool, string, Task> handler);
     void OnConnectionStateChanged(Func<HubConnectionState, Task> handler);
@@ -21,12 +19,6 @@ public interface ISignalRService : IAsyncDisposable
 public class SignalRService : ISignalRService, IAsyncDisposable
 {
     private HubConnection? _hubConnection;
-    private readonly ILogger<SignalRService> _logger;
-
-    public SignalRService(ILogger<SignalRService> logger)
-    {
-        _logger = logger;
-    }
 
     public HubConnection? Connection => _hubConnection;
     public HubConnectionState ConnectionState => _hubConnection?.State ?? HubConnectionState.Disconnected;
@@ -53,12 +45,10 @@ public class SignalRService : ISignalRService, IAsyncDisposable
                 .Build();
 
             await _hubConnection.StartAsync();
-            _logger.LogInformation("Connected to SignalR hub at {HubUrl}", hubUrl);
             return true;
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            _logger.LogError(ex, "Failed to connect to SignalR hub at {HubUrl}", hubUrl);
             return false;
         }
     }
@@ -70,25 +60,6 @@ public class SignalRService : ISignalRService, IAsyncDisposable
             await _hubConnection.StopAsync();
             await _hubConnection.DisposeAsync();
             _hubConnection = null;
-            _logger.LogInformation("Disconnected from SignalR hub");
-        }
-    }
-
-    public async Task JoinScannerGroupAsync(int scannerId, string viewType)
-    {
-        if (_hubConnection?.State == HubConnectionState.Connected)
-        {
-            await _hubConnection.SendAsync("JoinScannerGroup", scannerId, viewType);
-            _logger.LogDebug("Joined scanner group {ScannerId}-{ViewType}", scannerId, viewType);
-        }
-    }
-
-    public async Task LeaveScannerGroupAsync(int scannerId, string viewType)
-    {
-        if (_hubConnection?.State == HubConnectionState.Connected)
-        {
-            await _hubConnection.SendAsync("LeaveScannerGroup", scannerId, viewType);
-            _logger.LogDebug("Left scanner group {ScannerId}-{ViewType}", scannerId, viewType);
         }
     }
 

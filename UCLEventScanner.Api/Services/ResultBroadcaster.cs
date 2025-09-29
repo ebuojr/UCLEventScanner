@@ -21,13 +21,7 @@ public class ResultBroadcaster : IResultBroadcaster
     {
         try
         {
-            var controllerGroup = $"scanner-{scannerId}-controller";
-            await _hubContext.Clients.Group(controllerGroup).SendAsync("ReceiveResult", 
-                scannerId, isValid, message);
-
-            var studentGroup = $"scanner-{scannerId}-student";
-            await _hubContext.Clients.Group(studentGroup).SendAsync("ReceiveResult", 
-                scannerId, isValid, message);
+            await _hubContext.Clients.All.SendAsync("ReceiveResult", scannerId, isValid, message);
         }
         catch (Exception)
         {

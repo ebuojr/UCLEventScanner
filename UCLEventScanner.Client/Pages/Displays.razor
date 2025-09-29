@@ -181,6 +181,9 @@ else
         try
         {
             var apiBaseUrl = Configuration["ApiBaseUrl"];
+            if (string.IsNullOrEmpty(apiBaseUrl))
+                return;
+                
             var hubUrl = $"{apiBaseUrl.TrimEnd('/')}/validationHub";
 
             var connected = await SignalRService.ConnectAsync(hubUrl);
@@ -189,8 +192,6 @@ else
 
             SignalRService.OnResultReceived(OnResultReceivedAsync);
             SignalRService.OnConnectionStateChanged(OnConnectionStateChangedAsync);
-
-            await SignalRService.JoinScannerGroupAsync(ScannerId, ViewType?.ToLower() ?? "student");
         }
         catch (Exception)
         {
