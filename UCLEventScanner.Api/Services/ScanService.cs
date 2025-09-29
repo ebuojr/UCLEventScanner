@@ -134,7 +134,9 @@ public class ScanService : IScanService, IDisposable
             await _resultBroadcaster.BroadcastResultAsync(
                 scanRequest.ScannerId, 
                 reply.IsValid, 
-                reply.Message);
+                reply.Message,
+                reply.StudentId,
+                reply.StudentName);
 
             return new ScanResponseDto
             {
@@ -149,10 +151,10 @@ public class ScanService : IScanService, IDisposable
         {
             throw new TimeoutException("Scan request timed out");
         }
-        finally
-        {
-            _pendingRequests.TryRemove(correlationId, out _);
-        }
+        //finally
+        //{
+        //    _pendingRequests.TryRemove(correlationId, out _);
+        //}
     }
 
     public async Task<bool> CheckScannerHealthAsync(int scannerId)

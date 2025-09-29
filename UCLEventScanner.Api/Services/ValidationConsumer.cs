@@ -137,6 +137,9 @@ public class ValidationConsumer : BackgroundService
             using var scope = _scopeFactory.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
+            var student = await context.Students
+                .FirstOrDefaultAsync(s => s.Id == request.StudentId);
+
             var isRegistered = await context.Registrations
                 .AnyAsync(r => r.StudentId == request.StudentId && r.EventId == request.EventId);
 
@@ -146,15 +149,14 @@ public class ValidationConsumer : BackgroundService
                 {
                     CorrelationId = request.CorrelationId,
                     IsValid = true,
-                    Message = "Welcome! Registration confirmed. 🎉"
+                    Message = "Welcome! Registration confirmed. 🎉",
+                    StudentId = request.StudentId,
+                    StudentName = student?.Name ?? "Unknown Student"
                 };
             }
             else
             {
-                var studentExists = await context.Students
-                    .AnyAsync(s => s.Id == request.StudentId);
-
-                var message = studentExists 
+                var message = student != null 
                     ? "Student not registered for this event. 😔"
                     : "Student ID not found. 😔";
 
@@ -162,7 +164,9 @@ public class ValidationConsumer : BackgroundService
                 {
                     CorrelationId = request.CorrelationId,
                     IsValid = false,
-                    Message = message
+                    Message = message,
+                    StudentId = request.StudentId,
+                    StudentName = student?.Name ?? "Unknown Student"
                 };
             }
         }
@@ -175,7 +179,9 @@ public class ValidationConsumer : BackgroundService
             {
                 CorrelationId = request.CorrelationId,
                 IsValid = false,
-                Message = "System error. Please try again. ⚠️"
+                Message = "System error. Please try again. ⚠️",
+                StudentId = request.StudentId,
+                StudentName = "Unknown Student"
             };
         }
     }

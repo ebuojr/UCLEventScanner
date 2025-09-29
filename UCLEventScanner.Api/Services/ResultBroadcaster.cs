@@ -5,7 +5,7 @@ namespace UCLEventScanner.Api.Services;
 
 public interface IResultBroadcaster
 {
-    Task BroadcastResultAsync(int scannerId, bool isValid, string message);
+    Task BroadcastResultAsync(int scannerId, bool isValid, string message, string studentId = "", string studentName = "");
 }
 
 public class ResultBroadcaster : IResultBroadcaster
@@ -17,11 +17,11 @@ public class ResultBroadcaster : IResultBroadcaster
         _hubContext = hubContext;
     }
 
-    public async Task BroadcastResultAsync(int scannerId, bool isValid, string message)
+    public async Task BroadcastResultAsync(int scannerId, bool isValid, string message, string studentId = "", string studentName = "")
     {
         try
         {
-            await _hubContext.Clients.All.SendAsync("ReceiveResult", scannerId, isValid, message);
+            await _hubContext.Clients.All.SendAsync("ReceiveResult", scannerId, isValid, message, studentId, studentName);
         }
         catch (Exception)
         {

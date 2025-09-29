@@ -12,7 +12,7 @@ public interface ISignalRService : IAsyncDisposable
     Task<bool> ConnectAsync(string hubUrl);
     Task DisconnectAsync();
     
-    void OnResultReceived(Func<int, bool, string, Task> handler);
+    void OnResultReceived(Func<int, bool, string, string, string, Task> handler);
     void OnConnectionStateChanged(Func<HubConnectionState, Task> handler);
 }
 
@@ -63,9 +63,9 @@ public class SignalRService : ISignalRService, IAsyncDisposable
         }
     }
 
-    public void OnResultReceived(Func<int, bool, string, Task> handler)
+    public void OnResultReceived(Func<int, bool, string, string, string, Task> handler)
     {
-        _hubConnection?.On<int, bool, string>("ReceiveResult", handler);
+        _hubConnection?.On<int, bool, string, string, string>("ReceiveResult", handler);
     }
 
     public void OnConnectionStateChanged(Func<HubConnectionState, Task> handler)

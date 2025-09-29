@@ -3,6 +3,7 @@ namespace UCLEventScanner.Client.Models;
 public class DisplayResult
 {
     public string StudentId { get; set; } = string.Empty;
+    public string StudentName { get; set; } = string.Empty;
     public int ScannerId { get; set; }
     public bool IsValid { get; set; }
     public string Message { get; set; } = string.Empty;

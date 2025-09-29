@@ -33,7 +33,10 @@
 
                         @if (ViewType.ToLower() == DisplayConfig.ControllerView)
                         {
-                            <p class="text-lg font-medium mb-2 text-gray-900">@lastResult.StudentId</p>
+                            <div class="mb-4">
+                                <p class="text-xl font-bold text-gray-900 mb-1">@lastResult.StudentName</p>
+                                <p class="text-lg font-medium text-gray-700 mb-2">Student ID: @lastResult.StudentId</p>
+                            </div>
                             <p class="text-gray-600 mb-2">@lastResult.Message</p>
                             <p class="text-sm text-gray-500">@lastResult.Timestamp.ToString("HH:mm:ss")</p>
                         }
@@ -198,13 +201,14 @@ else
         }
     }
 
-    private async Task OnResultReceivedAsync(int scannerId, bool isValid, string message)
+    private async Task OnResultReceivedAsync(int scannerId, bool isValid, string message, string studentId, string studentName)
     {
         if (scannerId == ScannerId)
         {
             lastResult = new DisplayResult
             {
-                StudentId = "***", // Privacy protection
+                StudentId = studentId,
+                StudentName = studentName,
                 ScannerId = scannerId,
                 IsValid = isValid,
                 Message = message,
