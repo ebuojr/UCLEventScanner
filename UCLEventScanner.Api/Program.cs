@@ -86,6 +86,13 @@ using (var scope = app.Services.CreateScope())
         
         await queueManager.InitializeExchanges();
         app.Logger.LogInformation("RabbitMQ exchanges initialized");
+        
+        var activeScanners = await context.Scanners.Where(s => s.IsActive).ToListAsync();
+        foreach (var scanner in activeScanners)
+        {
+            await queueManager.SetupQueuesForScanner(scanner.Id);
+        }
+        app.Logger.LogInformation("Setup queues for {Count} active scanners", activeScanners.Count);
     }
     catch (Exception ex)
     {

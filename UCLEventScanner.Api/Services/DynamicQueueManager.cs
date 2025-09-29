@@ -1,7 +1,4 @@
 using RabbitMQ.Client;
-using System.Text;
-using Microsoft.EntityFrameworkCore;
-using UCLEventScanner.Api.Data;
 
 namespace UCLEventScanner.Api.Services;
 
@@ -20,7 +17,6 @@ public class DynamicQueueManager : IDynamicQueueManager
     private readonly ILogger<DynamicQueueManager> _logger;
 
     private const string DIRECT_EXCHANGE = "scan-requests";
-    private const string TOPIC_EXCHANGE = "validation-results";
     private const string QUEUE_PREFIX = "scan-requests-";
     
     public DynamicQueueManager(IRabbitMqConnectionService connectionService, 
@@ -39,14 +35,10 @@ public class DynamicQueueManager : IDynamicQueueManager
             using var channel = await _connectionService.CreateChannelAsync();
             
             channel.ExchangeDeclare(exchange: DIRECT_EXCHANGE, type: ExchangeType.Direct, durable: true);
-            _logger.LogInformation("Declared direct exchange: {Exchange}", DIRECT_EXCHANGE);
-
-            channel.ExchangeDeclare(exchange: TOPIC_EXCHANGE, type: ExchangeType.Topic, durable: true);
-            _logger.LogInformation("Declared topic exchange: {Exchange}", TOPIC_EXCHANGE);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to initialize RabbitMQ exchanges");
+            _logger.LogError(ex, "Failed to initialize exchanges");
             throw;
         }
     }
@@ -56,12 +48,8 @@ public class DynamicQueueManager : IDynamicQueueManager
         try
         {
             using var channel = await _connectionService.CreateChannelAsync();
-            
-            channel.ExchangeDeclare(exchange: DIRECT_EXCHANGE, type: ExchangeType.Direct, durable: true);
-            channel.ExchangeDeclare(exchange: TOPIC_EXCHANGE, type: ExchangeType.Topic, durable: true);
-            
+
             await SetupQueuesForScannerInternal(channel, scannerId);
-            _logger.LogInformation("Setup queues for scanner {ScannerId}", scannerId);
         }
         catch (Exception ex)
         {
@@ -78,7 +66,6 @@ public class DynamicQueueManager : IDynamicQueueManager
             var queueName = await GetScanRequestQueueName(scannerId);
 
             channel.QueueDelete(queue: queueName, ifUnused: false, ifEmpty: false);
-            _logger.LogInformation("Deleted queue {QueueName} for scanner {ScannerId}", queueName, scannerId);
         }
         catch (Exception ex)
         {
@@ -108,8 +95,6 @@ public class DynamicQueueManager : IDynamicQueueManager
                          exchange: DIRECT_EXCHANGE, 
                          routingKey: routingKey,
                          arguments: null);
-
-        _logger.LogDebug("Declared queue {QueueName} with routing key {RoutingKey}", queueName, routingKey);
         
         await Task.CompletedTask;
     }
